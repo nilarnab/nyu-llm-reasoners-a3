@@ -81,10 +81,10 @@ def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
     print("CATEGORIES", categories)
 
     print("CASES FORMAT REWARD 0")
-    print(cases_format_0)
+    print(cases_format_0[:20])
 
     print("CASES FORMAT REWARD 1 ANSWER REWARD 1")
-    print(cases_format_1_ans_0)
+    print(cases_format_1_ans_0[:20])
 
     return correct / len(outputs)
 
