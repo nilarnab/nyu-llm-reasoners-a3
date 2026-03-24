@@ -77,14 +77,11 @@ def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
         logger.info("PROMPT: %s | OUTPUT: %s | REWARD: %s | REWARD SO FAR: %s",
                     prompts[i][:25], text[:25], reward, dict(res))
 
+    logger.info("CATEGORIES: %s", categories)
 
-    print("CATEGORIES", categories)
+    logger.info("CASES FORMAT REWARD 0: %s", cases_format_0[:20])
 
-    print("CASES FORMAT REWARD 0")
-    print(cases_format_0[:20])
-
-    print("CASES FORMAT REWARD 1 ANSWER REWARD 1")
-    print(cases_format_1_ans_0[:20])
+    logger.info("CASES FORMAT REWARD 1 ANSWER REWARD 1: %s", cases_format_1_ans_0[:20])
 
     return correct / len(outputs)
 
