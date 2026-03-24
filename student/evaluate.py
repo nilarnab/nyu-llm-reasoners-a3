@@ -1,5 +1,5 @@
 """Minimal evaluation script for MATH and Intellect test sets."""
-
+from collections import defaultdict
 from pathlib import Path
 
 from datasets import load_dataset, load_from_disk
@@ -16,6 +16,9 @@ def load_prompt(name: str = "intellect") -> str:
 
 def evaluate(llm, prompts, ground_truths):
     """Run evaluation and return accuracy."""
+
+    res = defaultdict(lambda: 0)
+
     params = SamplingParams(temperature=0.0, max_tokens=2048)
     outputs = llm.generate(prompts, params)
 
@@ -23,7 +26,13 @@ def evaluate(llm, prompts, ground_truths):
     for i, output in enumerate(tqdm(outputs, desc="Grading")):
         text = output.outputs[0].text
         reward = question_only_reward_fn(text, ground_truths[i])
+
+        for key in reward:
+            res[key] += 1
+
         correct += reward["reward"]
+
+        print("PROMPT", prompts, "output", text, "reward", reward, "REWARD SO FAR", res)
 
     return correct / len(outputs)
 
