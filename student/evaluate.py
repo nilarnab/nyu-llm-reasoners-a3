@@ -104,7 +104,7 @@ def main():
     gts = [ex["answer"] for ex in math_ds]
 
     logger.info("[Sample] %s...", prompts[0][:200])
-    acc = evaluate(llm, prompts, gts)
+    acc = evaluate(llm, prompts, gts, logger)
     logger.info("MATH Accuracy: %.4f", acc)
 
 
