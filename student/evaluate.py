@@ -42,7 +42,7 @@ def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
         reward = question_only_reward_fn(text, ground_truths[i])
 
         for key in reward:
-            res[key] += 1
+            res[key] += reward[key]
 
         correct += reward["reward"]
 
