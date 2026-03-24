@@ -32,11 +32,14 @@ def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
+    categories = defaultdict(lambda: 0)
 
     params = SamplingParams(temperature=0.0, max_tokens=2048)
     outputs = llm.generate(prompts, params)
 
     correct = 0
+    cases_format_0 = []
+    cases_format_1_ans_0 = []
     for i, output in enumerate(tqdm(outputs, desc="Grading")):
         text = output.outputs[0].text
         reward = question_only_reward_fn(text, ground_truths[i])
@@ -46,8 +49,42 @@ def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
 
         correct += reward["reward"]
 
+
+        if reward['format_reward'] == 0:
+            cases_format_0.append({
+                "prompt": prompts[i],
+                "output": text,
+                "ground_truth": ground_truths[i],
+                "reward": reward,
+            })
+
+        if reward['format_reward'] == 1 and reward['answer_reward'] == 0:
+            cases_format_1_ans_0.append({
+                "prompt": prompts[i],
+                "output": text,
+                "ground_truth": ground_truths[i],
+                "reward": reward,
+            })
+
+
+        if reward['format_reward'] == 1 and reward['answer_reward'] == 1:
+            categories['CAT (1)'] += 1
+        elif reward['format_reward'] == 1 and reward['answer_reward'] == 0:
+            categories['CAT (2)'] += 1
+        elif reward['format_reward'] == 0 and reward['answer_reward'] == 0:
+            categories['CAT (3)'] += 1
+
         logger.info("PROMPT: %s | OUTPUT: %s | REWARD: %s | REWARD SO FAR: %s",
                     prompts[i][:25], text[:25], reward, dict(res))
+
+
+    print("CATEGORIES", categories)
+
+    print("CASES FORMAT REWARD 0")
+    print(cases_format_0)
+
+    print("CASES FORMAT REWARD 1 ANSWER REWARD 1")
+    print(cases_format_1_ans_0)
 
     return correct / len(outputs)
 
