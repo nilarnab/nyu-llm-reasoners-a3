@@ -1,4 +1,5 @@
 """Minimal evaluation script for MATH and Intellect test sets."""
+import logging
 from collections import defaultdict
 from pathlib import Path
 
@@ -9,12 +10,25 @@ from vllm import LLM, SamplingParams
 from student.drgrpo_grader import question_only_reward_fn
 
 
+def setup_logger(log_path: str = "eval.log") -> logging.Logger:
+    logger = logging.getLogger("eval")
+    logger.setLevel(logging.INFO)
+
+    # File handler — writes everything to disk
+    fh = logging.FileHandler(log_path, mode="w")
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+
+    logger.addHandler(fh)
+    return logger
+
+
 def load_prompt(name: str = "intellect") -> str:
     path = Path(__file__).parent / "prompts" / f"{name}.prompt"
     return path.read_text()
 
 
-def evaluate(llm, prompts, ground_truths):
+def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
@@ -32,19 +46,26 @@ def evaluate(llm, prompts, ground_truths):
 
         correct += reward["reward"]
 
-        print("PROMPT", prompts, "output", text, "reward", reward, "REWARD SO FAR", res)
+        logger.info("PROMPT: %s | OUTPUT: %s | REWARD: %s | REWARD SO FAR: %s",
+                    prompts[i][:25], text[:25], reward, dict(res))
 
     return correct / len(outputs)
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="Qwen/Qwen2.5-Math-1.5B")
     parser.add_argument("--max-examples", type=int, default=500)
     parser.add_argument("--intellect-path", default="data/intellect_math_train_dev_test/test")
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
+    parser.add_argument("--log-file", default="eval.log")
+
     args = parser.parse_args()
+
+    logger = setup_logger(args.log_file)
+
 
     prompt_template = load_prompt("intellect")
 
@@ -74,7 +95,7 @@ def main():
     # print(f"Intellect Accuracy: {acc:.4f}")
 
     # Evaluate on MATH
-    print("\n=== MATH Test ===")
+    logger.info("=== MATH Test ===")
     math_ds = load_dataset("hiyouga/math12k", split="test")
     if args.max_examples:
         math_ds = math_ds.select(range(min(args.max_examples, len(math_ds))))
@@ -82,9 +103,9 @@ def main():
     prompts = [prompt_template + "\n\n" + ex["problem"] for ex in math_ds]
     gts = [ex["answer"] for ex in math_ds]
 
-    print(f"[Sample] {prompts[0][:200]}...")
+    logger.info("[Sample] %s...", prompts[0][:200])
     acc = evaluate(llm, prompts, gts)
-    print(f"MATH Accuracy: {acc:.4f}")
+    logger.info("MATH Accuracy: %.4f", acc)
 
 
 if __name__ == "__main__":
