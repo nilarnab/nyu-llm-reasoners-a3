@@ -56,22 +56,22 @@ def main():
     )
 
     # Evaluate on Intellect test
-    print(f"\n=== Intellect Test ({args.intellect_path}) ===")
-    dataset = load_from_disk(args.intellect_path)
-    if args.max_examples:
-        dataset = dataset.select(range(min(args.max_examples, len(dataset))))
-
-    prompts, gts = [], []
-    for ex in dataset:
-        msgs = ex.get("messages", [])
-        sys_msg = next((m["content"] for m in msgs if m["role"] == "system"), "")
-        user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
-        prompts.append(sys_msg + "\n\n" + user_msg if sys_msg else user_msg)
-        gts.append(ex.get("ground_truth", ""))
-
-    print(f"[Sample] {prompts[0][:200]}...")
-    acc = evaluate(llm, prompts, gts)
-    print(f"Intellect Accuracy: {acc:.4f}")
+    # print(f"\n=== Intellect Test ({args.intellect_path}) ===")
+    # dataset = load_from_disk(args.intellect_path)
+    # if args.max_examples:
+    #     dataset = dataset.select(range(min(args.max_examples, len(dataset))))
+    #
+    # prompts, gts = [], []
+    # for ex in dataset:
+    #     msgs = ex.get("messages", [])
+    #     sys_msg = next((m["content"] for m in msgs if m["role"] == "system"), "")
+    #     user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
+    #     prompts.append(sys_msg + "\n\n" + user_msg if sys_msg else user_msg)
+    #     gts.append(ex.get("ground_truth", ""))
+    #
+    # print(f"[Sample] {prompts[0][:200]}...")
+    # acc = evaluate(llm, prompts, gts)
+    # print(f"Intellect Accuracy: {acc:.4f}")
 
     # Evaluate on MATH
     print("\n=== MATH Test ===")
