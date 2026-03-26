@@ -14,6 +14,9 @@ def test_tokenize_prompt_and_output(numpy_snapshot, prompt_strs, output_strs, to
         output_strs=output_strs,
         tokenizer=tokenizer,
     )
+
+    print("expecting", numpy_snapshot)
+    print("got", output)
     numpy_snapshot.assert_match(output)
 
 def test_compute_entropy(numpy_snapshot, logits):

@@ -3,6 +3,7 @@ from torch import Tensor
 from transformers import PreTrainedTokenizerBase
 
 from tests.conftest import response_mask
+from torch.nn.utils.rnn import pad_sequence
 
 
 def run_tokenize_prompt_and_output_util(
@@ -12,7 +13,7 @@ def run_tokenize_prompt_and_output_util(
 ) -> dict[str, Tensor]:
 
     input_ids = []
-    labels = []
+    # labels = []
     masks = []
     max_len = 0
 
@@ -21,34 +22,34 @@ def run_tokenize_prompt_and_output_util(
         output_str = output_strs[i]
 
 
-        prompt_ids = tokenizer.encode(prompt_str)
-        output_ids = tokenizer.encode(output_str)
-
+        prompt_ids = tokenizer.encode(prompt_str, add_special_tokens=False)
+        output_ids = tokenizer.encode(output_str, add_special_tokens=False)
         prompt_output_ids = prompt_ids + output_ids
 
-        input_id_one = prompt_output_ids[:-1]
-        max_len = max(max_len, len(input_id_one))
-        targets_one = prompt_output_ids[1: ]
+        response_mask = [0]*len(prompt_ids) + [1]*len(output_ids)
 
-        response_mask = [0] * (len(prompt_ids) - 1)
-        response_mask.extend([1] * len(output_ids))
+        input_ids.append(torch.tensor(prompt_output_ids))
+        masks.append(torch.tensor(response_mask))
+    
+    pad_id = tokenizer.pad_token_id
 
-        input_ids.append(input_id_one)
-        labels.append(targets_one)
-        masks.append(response_mask)
+    input_ids_padded = pad_sequence(
+        input_ids, batch_first=True, padding_value=pad_id
+    ) 
 
-    input_ids_pad = [x + [tokenizer.pad_token_id] * (max_len - len(x)) for x in input_ids]
-    labels_pad = [x + [-100] * (max_len - len(x)) for x in labels]  # TODO: Try something else as well
-    masks_pad = [x + [0] * (max_len - len(x)) for x in masks]
+    response_mask_padded = pad_sequence(
+        masks, batch_first=True, padding_value=0
+    ) 
 
-    input_ids_pad_tensor = torch.Tensor(input_ids_pad)
-    labels_pad_tensor = torch.Tensor(labels_pad)
-    masks_pad_tensor = torch.Tensor(masks_pad)
+    input_ids    = input_ids_padded[:, :-1]
+    labels       = input_ids_padded[:, 1:]
+    response_mask = response_mask_padded[:, 1:] 
+
 
     return {
-        "input_ids": input_ids_pad_tensor,
-        "labels": labels_pad_tensor,
-        "response": masks_pad_tensor
+        "input_ids": input_ids,
+        "labels": labels,
+        "response_mask": response_mask
     }
 
 
