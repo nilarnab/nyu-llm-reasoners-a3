@@ -210,11 +210,7 @@ def output_strs():
 
 @pytest.fixture
 def model_id():
-<<<<<<< HEAD
-    return "models/Qwen2.5-Math-1.5B"
-=======
     return "Qwen/Qwen2.5-Math-1.5B"
->>>>>>> dff5264d3c60d6c0fd1002ac9171073ba101baad
 
 
 @pytest.fixture

@@ -4,13 +4,12 @@ import torch
 from numpy.random import normal
 from torch import Tensor
 from einops import rearrange
-from jaxtyping import Bool, Float, Int
 
 
 def run_log_softmax_util(
-    in_features: Float[Tensor, "..."],
+    in_features,
     dim: int
-) -> Float[Tensor, "..."]:
+):
 
     max_val, _ = torch.max(in_features, dim=dim, keepdim=True)
     shifted = in_features - max_val
@@ -20,7 +19,7 @@ def run_log_softmax_util(
     return shifted - log_sum_exp
 
 
-def run_softmax_util(in_features: Float[Tensor, " ..."], dim: int) -> Float[Tensor, " ..."]:
+def run_softmax_util(in_features, dim: int):
     # taking in_features[dim], understand keepdim true meaning
 
     tensor_inp = in_features
