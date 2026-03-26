@@ -2,8 +2,6 @@ import torch
 from torch import Tensor
 from transformers import PreTrainedTokenizerBase
 
-from tests.conftest import response_mask
-
 
 def run_tokenize_prompt_and_output_util(
         prompt_strs: list[str],
