@@ -8,6 +8,8 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
+from student.sec_4.sec4 import run_tokenize_prompt_and_output_util
+
 
 def run_tokenize_prompt_and_output(
     prompt_strs: list[str],
@@ -31,6 +33,10 @@ def run_tokenize_prompt_and_output(
             "response_mask": torch.Tensor of shape (batch_size, max(prompt_and_output_lens) - 1):
                 a mask on the response tokens in `labels`.
     """
+
+    res = run_tokenize_prompt_and_output_util(prompt_strs, output_strs, tokenizer)
+    return res
+
     raise NotImplementedError
 
 
