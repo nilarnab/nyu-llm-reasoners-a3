@@ -61,3 +61,29 @@ def run_compute_entropy_util(logits: torch.Tensor):
     res = -torch.sum(res, dim=-1)
 
     return res
+
+
+def run_get_response_log_probs_util(
+    model: torch.nn.Module,
+    input_ids: torch.Tensor,
+    labels: torch.Tensor,
+    return_token_entropy: bool,
+):
+    res = model(input_ids)
+
+    log_probs = utils.run_log_softmax_util(res, -1)
+
+    selected_log_probs = torch.gather(
+        log_probs,
+        dim=-1,
+        index=labels.unsqueeze(-1)
+    ).squeeze(-1)
+
+    final = {"log_probs": selected_log_probs}
+
+    if return_token_entropy:
+        token_entropy = run_compute_entropy_util(res)
+        final['token_entropy'] = token_entropy
+
+    return final
+
