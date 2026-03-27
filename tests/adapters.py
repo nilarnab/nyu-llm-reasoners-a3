@@ -8,7 +8,7 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
-from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_entropy_util
+from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_entropy_util, run_get_response_log_probs_util
 
 
 def run_tokenize_prompt_and_output(
@@ -124,7 +124,7 @@ def run_get_response_log_probs(
                 we have not masked out the token indices corresponding to the prompt
                 or padding; that is done in the train loop.
     """
-    res = run_get_response_log_probs(model, input_ids, labels, return_token_entropy)
+    res = run_get_response_log_probs_util(model, input_ids, labels, return_token_entropy)
     return res
 
     raise NotImplementedError

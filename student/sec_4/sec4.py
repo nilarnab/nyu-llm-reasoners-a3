@@ -69,7 +69,7 @@ def run_get_response_log_probs_util(
     labels: torch.Tensor,
     return_token_entropy: bool,
 ):
-    res = model(input_ids)
+    res = model(input_ids).logits
 
     log_probs = utils.run_log_softmax_util(res, -1)
 
