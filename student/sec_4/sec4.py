@@ -109,5 +109,19 @@ def run_sft_microbatch_train_step_util(
     normalize_constant: int | None = 1.0,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
 
-    return None
+    print("policy log probs", policy_log_probs.shape)
+    print("response mask", response_mask.shape)
+
+    loss = -run_masked_normalize_util(policy_log_probs, response_mask, -1, normalize_constant) / gradient_accumulation_steps
+
+    print("shape of loss", loss.shape)
+
+    loss = loss.mean()
+
+    loss.backward()
+    
+    return loss, {
+            "loss": loss
+        }
+    
 
