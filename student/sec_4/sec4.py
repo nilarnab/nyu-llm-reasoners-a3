@@ -5,6 +5,8 @@ from transformers import PreTrainedTokenizerBase
 from torch.nn.utils.rnn import pad_sequence
 import student.utils as utils
 
+
+# TODO: UNDERSTAND THIS ONE PROPERLY
 def run_tokenize_prompt_and_output_util(
         prompt_strs: list[str],
     output_strs: list[str],
@@ -86,4 +88,16 @@ def run_get_response_log_probs_util(
         final['token_entropy'] = token_entropy
 
     return final
+
+
+def run_masked_normalize_util(
+    tensor: torch.Tensor,
+    mask: torch.Tensor,
+    dim: int | None = None,
+    normalize_constant: float = 1.0,
+) -> torch.Tensor:
+
+    res = (tensor * mask).sum(dim=dim) / normalize_constant
+
+    return res
 
