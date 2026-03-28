@@ -8,7 +8,8 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
-from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_entropy_util, run_get_response_log_probs_util
+from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_entropy_util, \
+    run_get_response_log_probs_util, run_masked_normalize_util
 
 
 def run_tokenize_prompt_and_output(
@@ -281,7 +282,9 @@ def run_masked_normalize(
             (mask=0) don't contribute to the sum.
     """
 
+    res = run_masked_normalize_util(tensor, mask, dim, normalize_constant)
 
+    return res
     raise NotImplementedError
 
 
