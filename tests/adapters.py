@@ -297,7 +297,8 @@ RLHF / safety part of the Alignment assignment.
 def get_packed_sft_dataset(
     tokenizer: PreTrainedTokenizerBase,
     dataset_path: str | os.PathLike,
-    seq_length: int,
+    seq_length:
+     int,
     shuffle: bool,
 ) -> Dataset:
     """
