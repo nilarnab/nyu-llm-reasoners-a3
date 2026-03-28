@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
 from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_entropy_util, \
-    run_get_response_log_probs_util, run_masked_normalize_util
+    run_get_response_log_probs_util, run_masked_normalize_util, run_sft_microbatch_train_step_util
 
 
 def run_tokenize_prompt_and_output(
@@ -217,6 +217,10 @@ def run_sft_microbatch_train_step(
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Compute the policy gradient loss and backprop its gradients for a microbatch.
     """
+
+
+    res = run_sft_microbatch_train_step_util(policy_log_probs, response_mask, gradient_accumulation_steps, normalize_constant)
+    return res
     raise NotImplementedError
 
     
