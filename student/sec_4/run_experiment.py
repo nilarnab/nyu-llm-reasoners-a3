@@ -1,6 +1,5 @@
 import os
 
-from accelerate.test_utils.scripts.external_deps.test_ds_alst_ulysses_sp import optimizer
 from datasets import load_from_disk, Dataset, load_dataset
 from torch import device
 from torch.utils.data import DataLoader
@@ -26,6 +25,7 @@ wandb.login(key=os.environ["WANDB_API_KEY"])
 
 
 def get_eval_intellect_dataloader(dataset_path, example_count, batch_size):
+    print('Intellect dataloader called')
     dataset = load_from_disk(dataset_path)
     if example_count:
         dataset = dataset.select(range(min(example_count, len(dataset))))
@@ -110,6 +110,7 @@ def run_sft_loop(
     for epoch_id in range(epoch):
         for batch in dataloader:
             step_count += 1
+            print("STEP COUNT", step_count)
 
             prompts = batch["prompt"]
             resps = batch["response"]
@@ -117,6 +118,7 @@ def run_sft_loop(
             res = run_tokenize_prompt_and_output_util(
                 prompts, resps, tokenizer
             )
+            print("tokenisze rpompt and output util done")
 
             input_ids = res['input_ids'].to(device)
             labels = res['labels'].to(device)
@@ -126,18 +128,26 @@ def run_sft_loop(
             log_probs = res_logprobs['log_probs']
             entropy = res_logprobs['token_entropy']
 
+            print("get response log probs done")
+
             # TODO: Understand normalize constant thing
             loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum(dim=-1))
             wandb.log({"eval/accuracy": loss, "entropy": entropy}, step=step_count)
+            print("loss", loss)
+
+            print("run sft microbatch done")
 
             if step_count % grad_accum_steps == 0:
+                print("Taking grad accc step")
                 optimizer.step()
                 optimizer.zero_grad()
 
             if step_count % eval_after == 0:
+                print("Running Eval")
                 load_policy_into_vllm_instance(model_train, eval_vllm_model)
                 acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
                 wandb.log({"eval/accuracy": acc}, step=step_count)
+                print('eval', acc)
 
         if step_count % grad_accum_steps != 0:
             optimizer.step()
@@ -150,8 +160,8 @@ def main():
     parser.add_argument("--model", default="Qwen/Qwen2.5-Math-1.5B")
     parser.add_argument("--max-examples", type=int, default=500)
     parser.add_argument("--dataset-type", type=str, default="INTELLECT")
-    parser.add_argument("--intellect-train-path", default="data/intellect_math_train_dev_test/train")
-    parser.add_argument("--intellect-test-path", default="data/intellect_math_train_dev_test/test")
+    parser.add_argument("--intellect-train-path", default="student/data/intellect_math/train")
+    parser.add_argument("--intellect-test-path", default="student/data/intellect_math/test")
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     parser.add_argument("--log-file", default="eval.log")
 
@@ -159,15 +169,19 @@ def main():
 
     logger = setup_logger(args.log_file)
 
+    print("Loading training model")
     model_train = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=torch.bfloat16
     ).to(DEVICE)
 
+
+    print("Loading tokenize")
     tokenizer = AutoTokenizer.from_pretrained(args.model)
+    print("===loaded===")
 
 
-    batch_size = 4
+    batch_size = 1
     example_count = 128
     learning_rate = 1e-4
 
@@ -187,11 +201,13 @@ def main():
 
     optimizer = torch.optim.AdamW(model_train.parameters(), lr=learning_rate)
 
+    print("Loading initvllm")
     eval_vllm_model = init_vllm(
         model_id=args.model,
         device=DEVICE,
         seed=2,
     )
+    print("==loaded==")
 
     prompt_template = load_prompt("intellect")
 
@@ -231,4 +247,7 @@ def main():
         eval_after=20)
 
     wandb.finish()
+
+
+main()
 

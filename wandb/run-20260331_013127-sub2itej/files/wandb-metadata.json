@@ -1,0 +1,76 @@
+{
+  "os":  "Linux-5.14.0-570.62.1.el9_6.x86_64-x86_64-with-glibc2.34",
+  "python":  "CPython 3.12.12",
+  "startedAt":  "2026-03-31T05:31:27.639895Z",
+  "program":  "/scratch/nd3032/nyu-llm-reasoners-a3/student/sec_4/run_experiment.py",
+  "codePath":  "student/sec_4/run_experiment.py",
+  "codePathLocal":  "student/sec_4/run_experiment.py",
+  "git":  {
+    "remote":  "git@github.com:nilarnab/nyu-llm-reasoners-a3.git",
+    "commit":  "fd1951146602c9400bdcb725685309642ad1589f"
+  },
+  "email":  "nd3032@nyu.edu",
+  "root":  "/scratch/nd3032/nyu-llm-reasoners-a3",
+  "host":  "b-19-19",
+  "executable":  "/scratch/nd3032/nyu-llm-reasoners-a3/.venv/bin/python3",
+  "cpu_count":  6,
+  "cpu_count_logical":  12,
+  "gpu":  "NVIDIA A100-SXM4-40GB",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "20122152960",
+      "used":  "8322609152"
+    }
+  },
+  "memory":  {
+    "total":  "89078550528"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA A100-SXM4-40GB",
+      "memoryTotal":  "42949672960",
+      "cudaCores":  6912,
+      "architecture":  "Ampere",
+      "uuid":  "GPU-bb485ea6-2729-3987-e1e1-31bc79908eb8"
+    }
+  ],
+  "cudaVersion":  "13.0",
+  "slurm":  {
+    "cluster_name":  "(null)",
+    "conf":  "/opt/slurm/data/slurmd/conf-cache/slurm.conf",
+    "cpus_on_node":  "12",
+    "export_env":  "NONE",
+    "get_user_env":  "1",
+    "gpus_on_node":  "1",
+    "gtids":  "0",
+    "job_account":  "csci_ga_3033_131-2026sp",
+    "job_cpus_per_node":  "12",
+    "job_end_time":  "1775020566",
+    "job_gid":  "4665757",
+    "job_gpus":  "0",
+    "job_id":  "158405",
+    "job_name":  "ood-jupyter",
+    "job_nodelist":  "b-19-19",
+    "job_num_nodes":  "1",
+    "job_partition":  "c12m85-a100-1",
+    "job_qos":  "normal",
+    "job_start_time":  "1774934166",
+    "job_uid":  "4665757",
+    "job_user":  "nd3032",
+    "jobid":  "158405",
+    "localid":  "0",
+    "nnodes":  "1",
+    "nodeid":  "0",
+    "nodelist":  "b-19-19",
+    "prio_process":  "0",
+    "procid":  "0",
+    "submit_dir":  "/var/www/ood/apps/sys/dashboard",
+    "submit_host":  "ood-burst-001",
+    "task_pid":  "5344",
+    "tasks_per_node":  "12",
+    "topology_addr":  "b-19-19",
+    "topology_addr_pattern":  "node"
+  },
+  "writerId":  "6k8n1swqpbk44snbnc0d6a44a9awepto"
+}
