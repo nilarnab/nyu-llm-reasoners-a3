@@ -5,6 +5,15 @@ from numpy.random import normal
 from torch import Tensor
 from einops import rearrange
 
+if torch.cuda.is_available():
+    print("device set to CUDA")
+    DEVICE = "cuda"
+elif torch.mps.is_available():
+    print("device set to MPS")
+    DEVICE = "mps"
+else:
+    print("no gpu available, defaulting to CPU")
+    DEVICE = "cpu"
 
 def run_log_softmax_util(
     in_features,

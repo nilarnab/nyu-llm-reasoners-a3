@@ -28,7 +28,7 @@ def load_prompt(name: str = "intellect") -> str:
     return path.read_text()
 
 
-def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
+def evaluate(llm, prompts, ground_truths):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
@@ -74,14 +74,14 @@ def evaluate(llm, prompts, ground_truths, logger: logging.Logger):
         elif reward['format_reward'] == 0 and reward['answer_reward'] == 0:
             categories['CAT (3)'] += 1
 
-        logger.info("PROMPT: %s | OUTPUT: %s | REWARD: %s | REWARD SO FAR: %s",
-                    prompts[i][:25], text[:25], reward, dict(res))
+        print(f"PROMPT: {prompts[i][:25]} | OUTPUT: {text[:25]} | REWARD: {reward} | REWARD SO FAR: {dict(res)}")
 
-    logger.info("CATEGORIES: %s", categories)
 
-    logger.info("CASES FORMAT REWARD 0: %s", cases_format_0[:20])
+    print("CATEGORIES: ", categories)
 
-    logger.info("CASES FORMAT REWARD 1 ANSWER REWARD 1: %s", cases_format_1_ans_0[:20])
+    print("CASES FORMAT REWARD 0: ", cases_format_0[:20])
+
+    print("CASES FORMAT REWARD 1 ANSWER REWARD 1:", cases_format_1_ans_0[:20])
 
     return correct / len(outputs)
 
