@@ -11,6 +11,7 @@ from transformers import PreTrainedTokenizerBase
 from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_entropy_util, \
     run_get_response_log_probs_util, run_masked_normalize_util, run_sft_microbatch_train_step_util
 
+from student.sec_7.sec7 import *
 
 def run_tokenize_prompt_and_output(
     prompt_strs: list[str],
@@ -84,6 +85,9 @@ def run_compute_group_normalized_rewards(
                 You may choose what you wish to log here
                 (some statistics of the rewards, etc.).
     """
+
+    return run_compute_group_normalized_rewards_util(reward_fn, rollout_responses, repeated_ground_truths, group_size, advantage_eps, normalize_by_std)
+
     raise NotImplementedError
 
 

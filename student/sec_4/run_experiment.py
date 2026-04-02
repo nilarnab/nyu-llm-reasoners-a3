@@ -18,6 +18,8 @@ from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_get_resp
 from student.utils import DEVICE
 import wandb
 
+TRAIN_DEVICE = "cuda:0"
+VLLM_DEVICE = "cuda:1"
 
 
 os.environ["WANDB_API_KEY"] = "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"
@@ -132,7 +134,10 @@ def run_sft_loop(
 
             # TODO: Understand normalize constant thing
             loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum(dim=-1))
-            wandb.log({"eval/accuracy": loss, "entropy": entropy}, step=step_count)
+            wandb.log({
+                "train/loss": loss.item(),
+                "train/entropy": entropy.mean().item()
+            }, step=step_count)
             print("loss", loss)
 
             print("run sft microbatch done")
@@ -173,7 +178,7 @@ def main():
     model_train = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=torch.bfloat16
-    ).to(DEVICE)
+    ).to(TRAIN_DEVICE)
 
 
     print("Loading tokenize")
@@ -204,7 +209,7 @@ def main():
     print("Loading initvllm")
     eval_vllm_model = init_vllm(
         model_id=args.model,
-        device=DEVICE,
+        device=VLLM_DEVICE,
         seed=2,
     )
     print("==loaded==")
@@ -241,7 +246,7 @@ def main():
         eval_vllm_model,
         eval_prompts,
         eval_gts,
-        device=DEVICE,
+        device=TRAIN_DEVICE,
         epoch=3,
         grad_accum_steps=4,
         eval_after=20)
