@@ -80,41 +80,26 @@ def run_compute_group_normalized_rewards_util(
     return Advantage, reward_tensor, {"reward_total": sum(rewards), "max_reward": max(rewards), "mean_reward": sum(rewards)/len(rewards), "min_reward": min(rewards)}
 
 
-# def run_compute_group_normalized_rewards_util(
-#     reward_fn: Callable,
-#     rollout_responses: list[str],
-#     repeated_ground_truths: list[str],
-#     group_size: int,
-#     advantage_eps: float,
-#     normalize_by_std: bool,
-# ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-#     # Compute raw rewards for all responses
-#     rewards = []
-#     for i, rollout_response in enumerate(rollout_responses):  # fix: no ()
-#         reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
-#         rewards.append(reward_outp["reward"])
+def run_compute_naive_policy_gradient_loss_util(
+        raw_rewards_or_advantages: torch.Tensor,
+    policy_log_probs: torch.Tensor,
+) -> torch.Tensor:
+    """Compute policy gradient loss using either raw rewards or advantages.
 
-#     raw_rewards = torch.tensor(rewards, dtype=torch.float32)
+    Args:
+        raw_rewards_or_advantages: torch.Tensor of shape (batch_size, 1):
+            the raw rewards or advantages for each rollout response.
+        policy_log_probs: torch.Tensor of shape (batch_size, sequence_length):
+            the log-probs of the policy.
 
-#     # Group-normalize: reshape into (n_groups, group_size)
-#     n_groups = len(rollout_responses) // group_size
-#     grouped = raw_rewards.view(n_groups, group_size)  # (n_groups, group_size)
+    Returns:
+        torch.Tensor of shape (batch_size, sequence_length):
+            the policy gradient per-token loss.
+    """
 
-#     group_means = grouped.mean(dim=1, keepdim=True)   # (n_groups, 1)
-#     advantages = grouped - group_means                 # subtract group mean
+    npgl = - raw_rewards_or_advantages * policy_log_probs
 
-#     if normalize_by_std:
-#         group_stds = grouped.std(dim=1, keepdim=True)  # (n_groups, 1)
-#         advantages = advantages / (group_stds + advantage_eps)
+    return npgl
 
-#     advantages = advantages.view(-1)  # flatten back to (rollout_batch_size,)
 
-#     metadata = {
-#         "mean_reward": raw_rewards.mean().item(),
-#         "std_reward": raw_rewards.std().item(),
-#         "max_reward": raw_rewards.max().item(),
-#         "min_reward": raw_rewards.min().item(),
-#     }
-
-#     return advantages, raw_rewards, metadata
 

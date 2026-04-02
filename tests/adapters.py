@@ -151,6 +151,10 @@ def run_compute_naive_policy_gradient_loss(
         torch.Tensor of shape (batch_size, sequence_length): 
             the policy gradient per-token loss.
     """
+    return run_compute_naive_policy_gradient_loss_util(
+        raw_rewards_or_advantages,
+        policy_log_probs
+    )
     raise NotImplementedError
 
 
