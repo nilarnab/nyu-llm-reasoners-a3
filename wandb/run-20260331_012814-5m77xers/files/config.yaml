@@ -1,0 +1,110 @@
+_wandb:
+    value:
+        cli_version: 0.25.0
+        e:
+            gf081av813lebevz4mvoza6cb6f8uu3y:
+                codePath: student/sec_4/run_experiment.py
+                codePathLocal: student/sec_4/run_experiment.py
+                cpu_count: 6
+                cpu_count_logical: 12
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "20122152960"
+                        used: "8328065024"
+                email: nd3032@nyu.edu
+                executable: /scratch/nd3032/nyu-llm-reasoners-a3/.venv/bin/python3
+                git:
+                    commit: fd1951146602c9400bdcb725685309642ad1589f
+                    remote: git@github.com:nilarnab/nyu-llm-reasoners-a3.git
+                gpu: NVIDIA A100-SXM4-40GB
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "42949672960"
+                      name: NVIDIA A100-SXM4-40GB
+                      uuid: GPU-bb485ea6-2729-3987-e1e1-31bc79908eb8
+                host: b-19-19
+                memory:
+                    total: "89078550528"
+                os: Linux-5.14.0-570.62.1.el9_6.x86_64-x86_64-with-glibc2.34
+                program: /scratch/nd3032/nyu-llm-reasoners-a3/student/sec_4/run_experiment.py
+                python: CPython 3.12.12
+                root: /scratch/nd3032/nyu-llm-reasoners-a3
+                slurm:
+                    cluster_name: (null)
+                    conf: /opt/slurm/data/slurmd/conf-cache/slurm.conf
+                    cpus_on_node: "12"
+                    export_env: NONE
+                    get_user_env: "1"
+                    gpus_on_node: "1"
+                    gtids: "0"
+                    job_account: csci_ga_3033_131-2026sp
+                    job_cpus_per_node: "12"
+                    job_end_time: "1775020566"
+                    job_gid: "4665757"
+                    job_gpus: "0"
+                    job_id: "158405"
+                    job_name: ood-jupyter
+                    job_nodelist: b-19-19
+                    job_num_nodes: "1"
+                    job_partition: c12m85-a100-1
+                    job_qos: normal
+                    job_start_time: "1774934166"
+                    job_uid: "4665757"
+                    job_user: nd3032
+                    jobid: "158405"
+                    localid: "0"
+                    nnodes: "1"
+                    nodeid: "0"
+                    nodelist: b-19-19
+                    prio_process: "0"
+                    procid: "0"
+                    submit_dir: /var/www/ood/apps/sys/dashboard
+                    submit_host: ood-burst-001
+                    task_pid: "5344"
+                    tasks_per_node: "12"
+                    topology_addr: b-19-19
+                    topology_addr_pattern: node
+                startedAt: "2026-03-31T05:28:14.356969Z"
+                writerId: gf081av813lebevz4mvoza6cb6f8uu3y
+        m: []
+        python_version: 3.12.12
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 30
+                - 41
+                - 49
+                - 51
+                - 53
+                - 71
+                - 95
+            "2":
+                - 1
+                - 5
+                - 11
+                - 30
+                - 41
+                - 49
+                - 51
+                - 53
+                - 71
+                - 95
+            "3":
+                - 13
+                - 16
+            "4": 3.12.12
+            "5": 0.25.0
+            "6": 4.48.3
+            "12": 0.25.0
+            "13": linux-x86_64
+batch_size:
+    value: 4
+learning_rate:
+    value: 0.0001
+model:
+    value: transformer
