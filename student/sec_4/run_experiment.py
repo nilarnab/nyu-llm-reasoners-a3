@@ -1,6 +1,5 @@
 import os
 
-from accelerate.test_utils.scripts.external_deps.test_ds_alst_ulysses_sp import optimizer
 from datasets import load_from_disk, Dataset, load_dataset
 from torch import device
 from torch.utils.data import DataLoader
