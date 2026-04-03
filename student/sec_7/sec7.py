@@ -126,12 +126,16 @@ def run_compute_grpo_clip_loss_util(
                 (used to compute clip fraction).
     """
 
-    ratio = (policy_log_probs / old_log_probs)
-    res = min(
-        ratio * advantages, max(min(ratio, 1 + cliprange), 1 - cliprange)
+    ratio = torch.exp(policy_log_probs - old_log_probs)
+
+
+    res = torch.min(
+        ratio * advantages, torch.clamp(ratio, 1 - cliprange, 1 + cliprange) * advantages
     )
 
-    return res, {"clip_loss": res, "ratio": ratio}
+    loss = -res
+
+    return loss, {"clip_loss": res, "ratio": ratio}
 
 
 
