@@ -188,7 +188,7 @@ def run_masked_mean_util(tensor: torch.Tensor, mask: torch.Tensor, dim: int | No
             dimension, considering only the elements with mask value 1.
     """
 
-    res = (tensor * mask).mean(dim=dim)
+    res = (tensor * mask).sum(dim=dim) / mask.sum(dim=dim)
 
     return res
 
