@@ -150,16 +150,18 @@ def run_compute_policy_gradient_loss_util(
     Wrapper that delegates to the appropriate policy gradient loss function above.
     """
 
+    print("loss_type", loss_type)
+
     if loss_type == 'no_baseline':
         return run_compute_naive_policy_gradient_loss_util(
             raw_rewards,
             policy_log_probs
-        )
+        ), {}
     elif loss_type == 'reinforce_with_baseline':
         return run_compute_naive_policy_gradient_loss_util(
             advantages,
             policy_log_probs
-        )
+        ), {}
     else:
         return run_compute_grpo_clip_loss_util(
             advantages,
