@@ -138,4 +138,37 @@ def run_compute_grpo_clip_loss_util(
     return loss, {"clip_loss": res, "ratio": ratio}
 
 
+def run_compute_policy_gradient_loss_util(
+    policy_log_probs: torch.Tensor,
+    loss_type: str,
+    raw_rewards: torch.Tensor,
+    advantages: torch.Tensor,
+    old_log_probs: torch.Tensor,
+    cliprange: float,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """
+    Wrapper that delegates to the appropriate policy gradient loss function above.
+    """
+
+    if loss_type == 'no_baseline':
+        return run_compute_naive_policy_gradient_loss_util(
+            raw_rewards,
+            policy_log_probs
+        )
+    elif loss_type == 'reinforce_with_baseline':
+        return run_compute_naive_policy_gradient_loss_util(
+            advantages,
+            policy_log_probs
+        )
+    else:
+        return run_compute_grpo_clip_loss_util(
+            advantages,
+            policy_log_probs,
+            old_log_probs,
+            cliprange
+        )
+
+
+
+
 

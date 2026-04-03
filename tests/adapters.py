@@ -199,6 +199,16 @@ def run_compute_policy_gradient_loss(
     """
     Wrapper that delegates to the appropriate policy gradient loss function above.
     """
+
+    return run_compute_policy_gradient_loss_util(
+        policy_log_probs,
+        loss_type,
+        raw_rewards,
+        advantages,
+        old_log_probs,
+        cliprange
+    )
+
     raise NotImplementedError
 
 
