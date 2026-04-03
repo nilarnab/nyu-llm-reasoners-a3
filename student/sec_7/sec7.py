@@ -101,5 +101,37 @@ def run_compute_naive_policy_gradient_loss_util(
 
     return npgl
 
+def run_compute_grpo_clip_loss_util(
+    advantages: torch.Tensor,
+    policy_log_probs: torch.Tensor,
+    old_log_probs: torch.Tensor,
+    cliprange: float,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """Compute the GRPO-Clip loss.
+
+    Args:
+        advantages: torch.Tensor of shape (batch_size, 1):
+            the advantages for each rollout response.
+        policy_log_probs: torch.Tensor of shape (batch_size, sequence_length):
+            the log-probs of the policy.
+        old_log_probs: torch.Tensor of shape (batch_size, sequence_length):
+            the log-probs of the old policy.
+        cliprange: float, the clip range for the ratio.
+
+    Returns:
+        tuple[torch.Tensor, dict[str, torch.Tensor]]:
+            torch.Tensor of shape (batch_size, sequence_length):
+                the GRPO-Clip per-token loss.
+            dict[str, torch.Tensor]: metadata for the GRPO-Clip loss
+                (used to compute clip fraction).
+    """
+
+    ratio = (policy_log_probs / old_log_probs)
+    res = min(
+        ratio * advantages, max(min(ratio, 1 + cliprange), 1 - cliprange)
+    )
+
+    return res, {"clip_loss": res, "ratio": ratio}
+
 
 
