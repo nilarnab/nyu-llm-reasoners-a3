@@ -12,6 +12,8 @@ from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_compute_
     run_get_response_log_probs_util, run_masked_normalize_util, run_sft_microbatch_train_step_util
 
 from student.sec_7.sec7 import *
+from student.sec_7.train_step import run_grpo_microbatch_train_step_util
+
 
 def run_tokenize_prompt_and_output(
     prompt_strs: list[str],
@@ -284,6 +286,17 @@ def run_grpo_microbatch_train_step(
         tuple[torch.Tensor, dict[str, torch.Tensor]]: 
             the policy gradient loss and its metadata.
     """
+
+    return run_grpo_microbatch_train_step_util(
+        policy_log_probs,
+        response_mask,
+        gradient_accumulation_steps,
+        loss_type,
+        raw_rewards,
+        advantages,
+        old_log_probs,
+        cliprange
+    )
     raise NotImplementedError
 
 
