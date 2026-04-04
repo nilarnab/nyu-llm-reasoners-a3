@@ -48,6 +48,8 @@ def run_grpo_microbatch_train_step_util(
             the policy gradient loss and its metadata.
     """
 
+    print(">>>> GRADIENT CLIP STEP", gradient_accumulation_steps, "loss type", loss_type)
+
     loss_per_token, metadata = run_compute_policy_gradient_loss_util(
         policy_log_probs,
         loss_type,
@@ -56,12 +58,13 @@ def run_grpo_microbatch_train_step_util(
         old_log_probs,
         cliprange
     )
-    loss = loss_per_token.mean()
+    # loss = loss_per_token.mean()
 
-    print("loss initial 1 shape", loss.shape)
-    masked_loss = run_masked_mean_util(loss, response_mask)
-
+    print("loss initial 1 shape", loss_per_token.shape)
+    masked_loss = run_masked_mean_util(loss_per_token, response_mask)
+    masked_loss = masked_loss.mean()
     masked_loss = masked_loss / gradient_accumulation_steps
+
     masked_loss.backward()
 
     return masked_loss, metadata
