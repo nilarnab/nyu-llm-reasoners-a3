@@ -48,6 +48,8 @@ def run_grpo_microbatch_train_step_util(
             the policy gradient loss and its metadata.
     """
 
+    print(">>>> GRADIENT CLIP STEP", gradient_accumulation_steps, "loss type", loss_type)
+
     loss_per_token, metadata = run_compute_policy_gradient_loss_util(
         policy_log_probs,
         loss_type,
