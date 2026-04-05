@@ -38,8 +38,11 @@ def get_eval_intellect_dataloader(dataset_path, example_count, batch_size):
         msgs = ex.get("messages", [])
         sys_msg = next((m["content"] for m in msgs if m["role"] == "system"), "")
         user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
-        prompts.append(sys_msg + "\n\n" + user_msg if sys_msg else user_msg)
-        responses.append(ex.get("ground_truth", ""))
+        assistant_msg = next((m["content"] for m in msgs if m["role"] == "assistant"), "")
+
+        prompt = sys_msg + "\n\n" + user_msg if sys_msg else user_msg
+        prompts.append(prompt)
+        responses.append(assistant_msg)  # full reasoning chain, not ground_truth
 
     dataset = Dataset.from_dict({"prompt": prompts, "response": responses})
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -90,6 +93,34 @@ def load_policy_into_vllm_instance(policy: PreTrainedModel, llm: LLM):
     state_dict = policy.state_dict()
     llm_model = llm.llm_engine.model_executor.driver_worker.model_runner.model
     llm_model.load_weights(state_dict.items())
+    
+
+def compute_eval_loss(model, eval_prompts, eval_resps, tokenizer, device, max_batches=20):
+    model.eval()
+    total_loss = 0
+    count = 0
+
+    with torch.no_grad():
+        for i in range(min(max_batches, len(eval_prompts))):
+            try:
+                res = run_tokenize_prompt_and_output_util(
+                    [eval_prompts[i]], [eval_resps[i]], tokenizer
+                )
+                input_ids = res['input_ids'].to(device)
+                labels = res['labels'].to(device)
+                response_mask = res['response_mask'].to(device)
+
+                res_logprobs = run_get_response_log_probs_util(model, input_ids, labels, return_token_entropy=False)
+                log_probs = res_logprobs['log_probs']
+
+                masked_loss = -(log_probs * response_mask).sum() / response_mask.sum()
+                total_loss += masked_loss.item()
+                count += 1
+            except Exception as e:
+                print("Eval loss error", e)
+
+    model.train()
+    return total_loss / count if count > 0 else 0
 
 def run_sft_loop(
         model_train,
@@ -99,60 +130,88 @@ def run_sft_loop(
         eval_vllm_model,
         eval_prompts,
         eval_gts,
+        eval_resps,
         device=DEVICE,
         epoch=3,
-        grad_accum_steps=4,
-        eval_after=20):
+        grad_accum_steps=32,
+        eval_after=20,):
 
 
     model_train.train()
     step_count = 0
     optimizer.zero_grad()
 
+
+    print("Running eval once first")
+    load_policy_into_vllm_instance(model_train, eval_vllm_model)
+    acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+    wandb.log({"eval/accuracy": acc}, step=step_count)
+    print('EVAL', acc)
+
     for epoch_id in range(epoch):
         for batch in dataloader:
             step_count += 1
-            print("STEP COUNT", step_count)
+            try:
+                print("STEP COUNT", step_count, "grad accumulation", grad_accum_steps)
 
-            prompts = batch["prompt"]
-            resps = batch["response"]
+                prompts = batch["prompt"]
+                resps = batch["response"]
 
-            res = run_tokenize_prompt_and_output_util(
-                prompts, resps, tokenizer
-            )
-            print("tokenisze rpompt and output util done")
+                print("Prompt Sizes", [len(el) for el in prompts])
+                print("Response sizes", [len(el) for el in resps])
 
-            input_ids = res['input_ids'].to(device)
-            labels = res['labels'].to(device)
-            response_mask = res['response_mask'].to(device)
+                # print("PROMPTS", prompts)
+                # print("RESPONSE", resps)
+                # print("")
 
-            res_logprobs = run_get_response_log_probs_util(model_train, input_ids, labels, return_token_entropy=True)
-            log_probs = res_logprobs['log_probs']
-            entropy = res_logprobs['token_entropy']
+                res = run_tokenize_prompt_and_output_util(
+                    prompts, resps, tokenizer
+                )
+                print("tokenisze rpompt and output util done")
 
-            print("get response log probs done")
+                input_ids = res['input_ids'].to(device)
+                labels = res['labels'].to(device)
+                response_mask = res['response_mask'].to(device)
 
-            # TODO: Understand normalize constant thing
-            loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum(dim=-1))
-            wandb.log({
-                "train/loss": loss.item(),
-                "train/entropy": entropy.mean().item()
-            }, step=step_count)
-            print("loss", loss)
+                res_logprobs = run_get_response_log_probs_util(model_train, input_ids, labels, return_token_entropy=True)
+                log_probs = res_logprobs['log_probs']
+                entropy = res_logprobs['token_entropy']
 
-            print("run sft microbatch done")
+                print("get response log probs done")
 
-            if step_count % grad_accum_steps == 0:
-                print("Taking grad accc step")
-                optimizer.step()
-                optimizer.zero_grad()
+                # TODO: Understand normalize constant thing
+                loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum(dim=-1))
+                wandb.log({
+                    "train/loss": loss.item(),
+                    "train/entropy": entropy.mean().item()
+                }, step=step_count)
+                print("loss", loss)
 
-            if step_count % eval_after == 0:
-                print("Running Eval")
-                load_policy_into_vllm_instance(model_train, eval_vllm_model)
-                acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
-                wandb.log({"eval/accuracy": acc}, step=step_count)
-                print('eval', acc)
+                print("run sft microbatch done")
+
+                if step_count % grad_accum_steps == 0:
+                    print("Taking grad accc step")
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+                if step_count % eval_after == 0:
+                    print("Running Eval")
+                    print("EVAL PROMPTS SAMPLE", eval_prompts[:2])
+                    print("EVAL GROUND TRUTHS", eval_gts[:2])
+                    load_policy_into_vllm_instance(model_train, eval_vllm_model)
+                    acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+                    eval_loss = compute_eval_loss(model_train, eval_prompts, eval_resps, tokenizer, device) if eval_resps else None
+                    print("EVAL LOSS", eval_loss)
+                    wandb.log({"eval/accuracy": acc}, step=step_count)
+                    if eval_loss is not None:
+                        wandb.log({"eval/loss": eval_loss}, step=step_count)
+                    else:
+                        print("evla lOSS is found none")
+                    print('eval', acc)
+                    print("EVAL LOSS", eval_loss)
+        
+            except Exception as error:
+                print("Error occurred", error)
 
         if step_count % grad_accum_steps != 0:
             optimizer.step()
@@ -187,16 +246,20 @@ def main():
 
 
     batch_size = 1
-    example_count = 128
+    example_count = None
     learning_rate = 1e-4
+    grad_accum_steps = 16
 
     wandb.init(
         project=f"assignment-3-test",
-        name=f"SFT4-batch_size{str(batch_size)}_lr{str(learning_rate)}",
+        name=f"SFT-dataset{args.dataset_type}-ec{str(example_count)}-ga{str(grad_accum_steps)}-batch_size{str(batch_size)}_lr{str(learning_rate)}",
         config={
             "model": "transformer",
             "batch_size": batch_size,
-            "learning_rate": learning_rate
+            "learning_rate": learning_rate,
+            "example_count": example_count,
+            "dataset": args.dataset_type,
+            "grad_accum_steps": grad_accum_steps,
         }
     )
 
@@ -218,26 +281,31 @@ def main():
 
     eval_prompts = []
     eval_gts = []
+    eval_resps = []
+    
     if args.dataset_type == 'MATH':
         math_ds = load_dataset("hiyouga/math12k", split="test")
         if args.max_examples:
             math_ds = math_ds.select(range(min(args.max_examples, len(math_ds))))
-
+    
         eval_prompts = [prompt_template + "\n\n" + ex["problem"] for ex in math_ds]
         eval_gts = [ex["answer"] for ex in math_ds]
+        eval_resps = [ex["solution"] for ex in math_ds]
     else:
         dataset = load_from_disk(args.intellect_test_path)
         if args.max_examples:
             dataset = dataset.select(range(min(args.max_examples, len(dataset))))
-
+    
         for ex in dataset:
             msgs = ex.get("messages", [])
             sys_msg = next((m["content"] for m in msgs if m["role"] == "system"), "")
             user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
+            assistant_msg = next((m["content"] for m in msgs if m["role"] == "assistant"), "")  # add this
             eval_prompts.append(sys_msg + "\n\n" + user_msg if sys_msg else user_msg)
             eval_gts.append(ex.get("ground_truth", ""))
+            eval_resps.append(assistant_msg)
 
-
+    
     run_sft_loop(
         model_train,
         dataloader,
@@ -248,7 +316,8 @@ def main():
         eval_gts,
         device=TRAIN_DEVICE,
         epoch=3,
-        grad_accum_steps=4,
+        grad_accum_steps=grad_accum_steps,
+        eval_resps=eval_resps,
         eval_after=20)
 
     wandb.finish()
