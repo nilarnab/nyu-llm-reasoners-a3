@@ -25,6 +25,9 @@ def run_tokenize_prompt_and_output_util(
 
         prompt_ids = tokenizer.encode(prompt_str, add_special_tokens=False)
         output_ids = tokenizer.encode(output_str, add_special_tokens=False)
+        
+        print("lengths: prompt", len(prompt_ids), "outpout", len(output_ids), "total", len(prompt_ids) + len(output_ids))
+        
         prompt_output_ids = prompt_ids + output_ids
 
         response_mask = [0]*len(prompt_ids) + [1]*len(output_ids)
@@ -55,14 +58,17 @@ def run_tokenize_prompt_and_output_util(
 
 
 def run_compute_entropy_util(logits: torch.Tensor):
-    log_probs = utils.run_log_softmax_util(logits, -1)
-    probs = utils.run_softmax_util(logits, -1)
+    # log_probs = utils.run_log_softmax_util(logits, -1)
+    # probs = utils.run_softmax_util(logits, -1)
 
-    res = probs * log_probs
+    # res = probs * log_probs
 
-    res = -torch.sum(res, dim=-1)
+    # res = -torch.sum(res, dim=-1)
 
-    return res
+    # return res
+    log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+    # Use the identity: H = -sum(p * log_p) = -sum(exp(log_p) * log_p)
+    return -(torch.exp(log_probs) * log_probs).sum(dim=-1)
 
 
 def run_get_response_log_probs_util(
