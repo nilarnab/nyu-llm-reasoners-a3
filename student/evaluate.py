@@ -79,9 +79,9 @@ def evaluate(llm, prompts, ground_truths):
 
     print("CATEGORIES: ", categories)
 
-    print("CASES FORMAT REWARD 0: ", cases_format_0[:20])
+    # print("CASES FORMAT REWARD 0: ", cases_format_0[:20])
 
-    print("CASES FORMAT REWARD 1 ANSWER REWARD 1:", cases_format_1_ans_0[:20])
+    # print("CASES FORMAT REWARD 1 ANSWER REWARD 1:", cases_format_1_ans_0[:20])
 
     return correct / len(outputs)
 

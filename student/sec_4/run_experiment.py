@@ -101,7 +101,7 @@ def run_sft_loop(
         eval_gts,
         device=DEVICE,
         epoch=3,
-        grad_accum_steps=4,
+        grad_accum_steps=32,
         eval_after=20):
 
 
