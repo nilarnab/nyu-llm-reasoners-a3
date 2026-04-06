@@ -271,13 +271,14 @@ def main():
 
 
     batch_size = 1
-    example_count = None
+    example_count = 128
     learning_rate = 1e-4
-    grad_accum_steps = 16
-
+    grad_accum_steps = 4
+    
+    run_name = f"SFT-dataset{args.dataset_type}-ec{str(example_count)}-ga{str(grad_accum_steps)}-batch_size{str(batch_size)}_lr{str(learning_rate)}"
     wandb.init(
         project=f"assignment-3-test",
-        name=f"SFT-dataset{args.dataset_type}-ec{str(example_count)}-ga{str(grad_accum_steps)}-batch_size{str(batch_size)}_lr{str(learning_rate)}",
+        name=run_name,
         config={
             "model": "transformer",
             "batch_size": batch_size,
@@ -343,7 +344,9 @@ def main():
         epoch=3,
         grad_accum_steps=grad_accum_steps,
         eval_resps=eval_resps,
-        eval_after=20)
+        eval_after=20,
+        run_name=run_name
+        )
 
     wandb.finish()
 
