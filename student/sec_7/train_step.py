@@ -2,11 +2,14 @@ from typing import Callable, Literal
 
 import numpy as np
 import torch
+import wandb
 from torch import Tensor
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, AutoModelForCausalLM, AutoTokenizer
 
 from torch.nn.utils.rnn import pad_sequence
 import student.utils as utils
+from student.evaluate import evaluate
+from student.sec_4.run_experiment import load_policy_into_vllm_instance
 from student.sec_7.sec7 import run_compute_policy_gradient_loss_util, run_masked_mean_util
 from tests.conftest import rollout_responses, reward_fn, repeated_ground_truths
 
@@ -70,3 +73,84 @@ def run_grpo_microbatch_train_step_util(
 
     return masked_loss, metadata
     pass
+
+
+def run_grpo_training(
+        model_train,
+        dataloader,
+        tokenizer,
+        optimizer,
+        eval_vllm_model,
+        eval_prompts,
+        eval_gts,
+        device=utils.DEVICE,
+        # n_grpo_steps=3,
+        # grad_accum_steps=32,
+        eval_after=20,
+        run_name=None,
+):
+    model_train.train()
+    step_count = 0
+    optimizer.zero_grad()
+
+    best_acc = -1
+    print("Running eval once first")
+    load_policy_into_vllm_instance(model_train, eval_vllm_model)
+    acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+    wandb.log({"eval/accuracy": acc}, step=step_count)
+    print('EVAL', acc)
+
+    for step in range(n_grpo_steps):
+        questions_batch = next(iter(dataloader))
+
+        old_policy_model = model_train.eval()
+        old_policy_model = old_policy_model.to(device)
+
+        rollout_responses = []
+        repeated_ground_truths = []
+
+
+
+if __name__ == '__main__':
+    policy_model_name = "Qwen/Qwen2.5-Math-1.5B-Instruct"  # exact model for GRPO
+    policy = AutoModelForCausalLM.from_pretrained(
+        policy_model_name,
+        torch_dtype=torch.float16,
+        device_map="auto"
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(policy_model_name)
+
+    n_grpo_steps: int = 200
+    learning_rate: float = 1e-5
+    advantage_eps: float = 1e-6
+    rollout_batch_size: int = 16
+    group_size: int = 8
+    sampling_temperature: float = 0.7
+    sampling_min_tokens: int = 4
+    sampling_max_tokens: int = 1024
+    epochs_per_rollout_batch: int = 1  # On-policy
+    train_batch_size: int = 64  # On-policy
+    gradient_accumulation_steps: int = 128
+    gpu_memory_utilization: float = 0.8
+    loss_type: Literal[
+        "no_baseline",
+        "reinforce_with_baseline",
+        "grpo_clip",
+    ] = "reinforce_with_baseline"
+    use_std_normalization: bool = True
+    optimizer = torch.optim.AdamW(
+        policy.parameters(),
+        lr=learning_rate,
+        weight_decay=0.0,
+        betas=(0.9, 0.95),
+    )
+
+
+
+
+
+
+
+
+

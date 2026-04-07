@@ -7,6 +7,8 @@ import student.utils as utils
 
 
 # TODO: UNDERSTAND THIS ONE PROPERLY
+# TODO: change normalization
+
 def run_tokenize_prompt_and_output_util(
         prompt_strs: list[str],
     output_strs: list[str],
@@ -37,7 +39,7 @@ def run_tokenize_prompt_and_output_util(
     
     pad_id = None
     if pad_id is None:
-        pad_id = 151643 # that happens to be the pad id value
+        pad_id = 128001 # that happens to be the pad id value
     print("PAD ID", pad_id)
 
     input_ids_padded = pad_sequence(
