@@ -21,15 +21,58 @@ from tests.conftest import rollout_responses, reward_fn, repeated_ground_truths
 
 
 def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42):
+    def extract_question(text: str) -> str:
+        if "User:" in text:
+            text = text.split("User:")[-1]
+
+        if "Show your work" in text:
+            text = text.split("Show your work")[0]
+
+        return text.strip()
+
+    def format_prompt(question: str) -> str:
+        return f"""Answer the following problem. Explain your reasoning step by step. When you are finished, give your answer in this format: <answer>(your answer)</answer>.
+
+    Problem
+    {question}
+
+    Your solution should include a series of steps "Step X:" where each step is a mathematical operation and the final step ultimately leads to the target number or it should be a single equation that results in the target.
+
+    Give your answer in the following format:
+    <answer>
+    (your answer)
+    </answer>
+
+    Where "(your answer)" is the list of steps to reach the target number or it should be a single equation that results in the target.
+
+    For example:
+    If the list of numbers was [1, 2, 3] and the target was 1, you could write:
+
+    <answer>
+    Step 1: 1 + 2 = 3
+    Step 2: 3 / 3 = 1
+    </answer>
+
+    or
+
+    <answer>
+    (1 + 2) / 3
+    </answer>
+
+    Let's think step by step."""
+    
     dataset = load_from_disk(dataset_path)
 
     def collate_fn(batch):
         prompts = []
+
         for item in batch:
-            msgs = item["prompt"]  # list of {"role": ..., "content": ...}
-            sys_msg  = next((m["content"] for m in msgs if m["role"] == "system"), "")
+            msgs = item["prompt"]
             user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
-            prompt = sys_msg + "\n\n" + user_msg if sys_msg else user_msg
+
+            question = extract_question(user_msg)
+            prompt = format_prompt(question)
+
             prompts.append(prompt)
 
         return {
