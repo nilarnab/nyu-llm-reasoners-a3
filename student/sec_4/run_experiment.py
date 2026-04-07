@@ -97,8 +97,9 @@ def load_policy_into_vllm_instance(policy: PreTrainedModel, llm: LLM):
 
 def compute_eval_loss(model, eval_prompts, eval_resps, tokenizer, device, max_batches=20):
     model.eval()
-    total_loss = 0
-    count = 0
+    
+    total_logprob = 0.0
+    total_tokens = 0.0
 
     with torch.no_grad():
         for i in range(min(max_batches, len(eval_prompts))):
@@ -110,17 +111,23 @@ def compute_eval_loss(model, eval_prompts, eval_resps, tokenizer, device, max_ba
                 labels = res['labels'].to(device)
                 response_mask = res['response_mask'].to(device)
 
-                res_logprobs = run_get_response_log_probs_util(model, input_ids, labels, return_token_entropy=False)
+                res_logprobs = run_get_response_log_probs_util(
+                    model, input_ids, labels, return_token_entropy=False
+                )
                 log_probs = res_logprobs['log_probs']
 
-                masked_loss = -(log_probs * response_mask).sum() / response_mask.sum()
-                total_loss += masked_loss.item()
-                count += 1
+                total_logprob += (log_probs * response_mask).sum().item()
+                total_tokens += response_mask.sum().item()
+
             except Exception as e:
                 print("Eval loss error", e)
 
     model.train()
-    return total_loss / count if count > 0 else 0
+
+    if total_tokens == 0:
+        return 0
+
+    return - total_logprob / total_tokens
 
 def run_sft_loop(
         model_train,
@@ -184,9 +191,10 @@ def run_sft_loop(
                 print("get response log probs done")
 
                 # TODO: Understand normalize constant thing
-                loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum(dim=-1))
+                loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum())
+                true_loss = loss.item() * grad_accum_steps
                 wandb.log({
-                    "train/loss": loss.item(),
+                    "train/loss": true_loss,
                     "train/entropy": entropy.mean().item()
                 }, step=step_count)
                 print("loss", loss)
@@ -271,9 +279,9 @@ def main():
 
 
     batch_size = 1
-    example_count = 128
+    example_count = None
     learning_rate = 1e-4
-    grad_accum_steps = 4
+    grad_accum_steps = 16
     
     run_name = f"SFT-dataset{args.dataset_type}-ec{str(example_count)}-ga{str(grad_accum_steps)}-batch_size{str(batch_size)}_lr{str(learning_rate)}"
     wandb.init(
