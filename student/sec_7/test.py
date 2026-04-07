@@ -31,7 +31,7 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
     val_loader = DataLoader(
         dataset["test"],  # update based on dataset.keys()
         batch_size=n_prompts_per_rollout_batch,
-        shuffle=False,
+        shuffle=True,
         collate_fn=collate_fn,
         drop_last=False,
     )
@@ -40,10 +40,11 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
 
 if __name__ == '__main__':
     train_dataloader, _ = get_countdown_dataloaders(
-        "student/data/countdown",1
+        "student/data/countdown/dataset",1
     )
 
     batch = next(iter(train_dataloader))
+    print(batch)
     print(batch["prompts"][0])
     print("---")
     print(batch["ground_truths"][0])
