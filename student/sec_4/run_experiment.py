@@ -154,7 +154,7 @@ def run_sft_loop(
 
     print("Running eval once first")
     load_policy_into_vllm_instance(model_train, eval_vllm_model)
-    acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+    acc, _ = evaluate(eval_vllm_model, eval_prompts, eval_gts)
     wandb.log({"eval/accuracy": acc}, step=step_count)
     print('EVAL', acc)
 
@@ -211,7 +211,7 @@ def run_sft_loop(
                     print("EVAL PROMPTS SAMPLE", eval_prompts[:2])
                     print("EVAL GROUND TRUTHS", eval_gts[:2])
                     load_policy_into_vllm_instance(model_train, eval_vllm_model)
-                    acc = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+                    acc, _ = evaluate(eval_vllm_model, eval_prompts, eval_gts)
                     eval_loss = compute_eval_loss(model_train, eval_prompts, eval_resps, tokenizer, device) if eval_resps else None
                     print("EVAL LOSS", eval_loss)
                     wandb.log({"eval/accuracy": acc}, step=step_count)

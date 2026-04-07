@@ -1,3 +1,5 @@
+import random
+
 from datasets import load_from_disk, load_dataset
 from torch.utils.data import DataLoader
 import torch
@@ -39,13 +41,15 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
 
 
 if __name__ == '__main__':
-    train_dataloader, _ = get_countdown_dataloaders(
-        "student/data/countdown/dataset",1
-    )
-
-    batch = next(iter(train_dataloader))
-    print(batch)
-    print(batch["prompts"][0])
-    print("---")
-    print(batch["ground_truths"][0])
+    # train_dataloader, _ = get_countdown_dataloaders(
+    #     "student/data/countdown/dataset",1
+    # )
+    #
+    # batch = next(iter(train_dataloader))
+    # print(batch)
+    # print(batch["prompts"][0])
+    # print("---")
+    # print(batch["ground_truths"][0])
+    dataset = load_from_disk("student/data/countdown/dataset")
+    print(dataset["train"][random.randint(1, 100)])
 

@@ -28,18 +28,26 @@ def load_prompt(name: str = "intellect") -> str:
     return path.read_text()
 
 
-def evaluate(llm, prompts, ground_truths):
+def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
     categories = defaultdict(lambda: 0)
 
-    params = SamplingParams(temperature=0.0, max_tokens=2048)
+    params = SamplingParams(
+        temperature=sampling_temperature,
+        max_tokens=sampling_max_tokens,
+        min_tokens=sampling_min_tokens,
+        stop=stop_tokens if stop_tokens is not None else []
+    )
     outputs = llm.generate(prompts, params)
 
     correct = 0
     cases_format_0 = []
     cases_format_1_ans_0 = []
+
+    example_rollouts = []
+
     for i, output in enumerate(tqdm(outputs, desc="Grading")):
         text = output.outputs[0].text
         reward = question_only_reward_fn(text, ground_truths[i])
@@ -48,6 +56,14 @@ def evaluate(llm, prompts, ground_truths):
             res[key] += reward[key]
 
         correct += reward["reward"]
+
+        if i < n_examples:
+            example_rollouts.append({
+                "prompt": prompts[i],
+                "output": text,
+                "ground_truth": ground_truths[i],
+                "reward": reward,
+            })
 
 
         if reward['format_reward'] == 0:
@@ -82,8 +98,18 @@ def evaluate(llm, prompts, ground_truths):
     # print("CASES FORMAT REWARD 0: ", cases_format_0[:20])
 
     # print("CASES FORMAT REWARD 1 ANSWER REWARD 1:", cases_format_1_ans_0[:20])
+    for key in res:
+        res[key] = res[key] / len(outputs)
 
-    return correct / len(outputs)
+    if example_rollouts:
+        print("\n=== Example Rollouts ===")
+        for ex in example_rollouts:
+            print(f"PROMPT: {ex['prompt'][:50]} ...")
+            print(f"OUTPUT: {ex['output'][:100]} ...")
+            print(f"GROUND TRUTH: {ex['ground_truth'][:50]} ...")
+            print(f"REWARD: {ex['reward']}\n")
+
+    return correct / len(outputs), res
 
 
 def main():
@@ -125,7 +151,7 @@ def main():
     #     gts.append(ex.get("ground_truth", ""))
     #
     # print(f"[Sample] {prompts[0][:200]}...")
-    # acc = evaluate(llm, prompts, gts)
+    # acc, _ = evaluate(llm, prompts, gts)
     # print(f"Intellect Accuracy: {acc:.4f}")
 
     # Evaluate on MATH
@@ -138,7 +164,7 @@ def main():
     gts = [ex["answer"] for ex in math_ds]
 
     logger.info("[Sample] %s...", prompts[0][:200])
-    acc = evaluate(llm, prompts, gts, logger)
+    acc, _ = evaluate(llm, prompts, gts)
     logger.info("MATH Accuracy: %.4f", acc)
 
 
