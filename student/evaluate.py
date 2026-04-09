@@ -90,7 +90,7 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
         elif reward['format_reward'] == 0 and reward['answer_reward'] == 0:
             categories['CAT (3)'] += 1
 
-        print(f"PROMPT: {prompts[i][:25]} | OUTPUT: {text[:25]} | REWARD: {reward} | REWARD SO FAR: {dict(res)}")
+        # print(f"PROMPT: {prompts[i][:25]} | OUTPUT: {text[:25]} | REWARD: {reward} | REWARD SO FAR: {dict(res)}")
 
 
     print("CATEGORIES: ", categories)
@@ -104,9 +104,9 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
     if example_rollouts:
         print("\n=== Example Rollouts ===")
         for ex in example_rollouts:
-            print(f"PROMPT: {ex['prompt'][:50]} ...")
-            print(f"OUTPUT: {ex['output'][:100]} ...")
-            print(f"GROUND TRUTH: {ex['ground_truth'][:50]} ...")
+            print(f"PROMPT: {ex['prompt']} ...")
+            print(f"OUTPUT: {ex['output'][-50:]} ...")
+            #print(f"GROUND TRUTH: {ex['ground_truth']} ...")
             print(f"REWARD: {ex['reward']}\n")
 
     return correct / len(outputs), res
@@ -118,7 +118,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="Qwen/Qwen2.5-Math-1.5B")
     parser.add_argument("--max-examples", type=int, default=500)
-    parser.add_argument("--intellect-path", default="data/intellect_math_train_dev_test/test")
+    parser.add_argument("--intellect-path", default="student/data/intellect_math/test")
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     parser.add_argument("--log-file", default="eval.log")
 

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Callable
 
 import numpy as np
@@ -7,7 +8,8 @@ from transformers import PreTrainedTokenizerBase
 
 from torch.nn.utils.rnn import pad_sequence
 import student.utils as utils
-from tests.conftest import rollout_responses, reward_fn, repeated_ground_truths
+# from tests.conftest import rollout_responses, reward_fn, repeated_ground_truths
+from collections import defaultdict
 
 
 def run_compute_group_normalized_rewards_util(

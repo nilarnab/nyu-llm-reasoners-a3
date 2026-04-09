@@ -82,20 +82,20 @@ def run_get_response_log_probs_util(
     labels: torch.Tensor,
     return_token_entropy: bool,
 ):
-    res = model(input_ids).logits
+    res = model(input_ids).logits # (B, L, V)
 
-    log_probs = utils.run_log_softmax_util(res, -1)
+    log_probs = utils.run_log_softmax_util(res, -1) # outp shape, (B, L, V)
 
     selected_log_probs = torch.gather(
         log_probs,
         dim=-1,
         index=labels.unsqueeze(-1)
-    ).squeeze(-1)
+    ).squeeze(-1) # (B, L, 1).squeeze = (B, L)
 
     final = {"log_probs": selected_log_probs}
 
     if return_token_entropy:
-        token_entropy = run_compute_entropy_util(res)
+        token_entropy = run_compute_entropy_util(res) # per token entropy (B, L)
         final['token_entropy'] = token_entropy
 
     return final
