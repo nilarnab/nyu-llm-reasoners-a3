@@ -7,7 +7,8 @@ from transformers import PreTrainedTokenizerBase
 
 from torch.nn.utils.rnn import pad_sequence
 import student.utils as utils
-from tests.conftest import rollout_responses, reward_fn, repeated_ground_truths
+# from tests.conftest import rollout_responses, reward_fn, repeated_ground_truths
+from collections import defaultdict
 
 
 def run_compute_group_normalized_rewards_util(
@@ -54,13 +55,19 @@ def run_compute_group_normalized_rewards_util(
                 (some statistics of the rewards, etc.).
     """
     rewards = []
+    reward_log = defaultdict(lambda: 0)
     for i, rollout_response in enumerate(rollout_responses):
         reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
+        for key in reward_outp:
+            reward_log[key] += reward_outp[key]
         reward = reward_outp['reward']
         rewards.append(reward)
 
     # mean_rwd = np.mean(rewards)
     # std_rwd = np.std(rewards)
+    
+    for key in reward_log:
+        reward_log[key] = reward_log[key] / len(rewards)
 
     reward_tensor = torch.tensor(rewards)
 
@@ -77,9 +84,101 @@ def run_compute_group_normalized_rewards_util(
     Advantage = Advantage.view(-1)
 
 
-    return Advantage, reward_tensor, {"reward_total": sum(rewards), "max_reward": max(rewards), "mean_reward": sum(rewards)/len(rewards), "min_reward": min(rewards)}
+    return Advantage, reward_tensor, reward_log
 
 
+def run_get_response_log_probs_grpo_util(
+    model: torch.nn.Module,
+    input_ids: torch.Tensor,
+    labels: torch.Tensor,
+    return_token_entropy: bool,
+    requires_grad: bool = True, 
+):
+    print("calling unified log prob util")
+
+    context = torch.enable_grad() if requires_grad else torch.no_grad()
+
+    with context:
+        logits = model(input_ids).logits  # [B, T, V]
+
+        selected_logits = torch.gather(
+            logits,
+            dim=-1,
+            index=labels.unsqueeze(-1)
+        ).squeeze(-1)  # [B, T]
+
+        logsumexp = torch.logsumexp(logits, dim=-1)  # [B, T]
+
+        selected_log_probs = selected_logits - logsumexp  # [B, T]
+
+        final = {"log_probs": selected_log_probs}
+
+        if return_token_entropy:
+            probs = torch.softmax(logits, dim=-1)
+            log_probs = torch.log(probs + 1e-12)
+            token_entropy = -(probs * log_probs).sum(dim=-1)
+            final["token_entropy"] = token_entropy
+
+        del logits
+        if return_token_entropy:
+            del probs, log_probs
+
+    return final
+    
+    
+def run_get_response_log_probs_grpo_util_chunked(
+    model: torch.nn.Module,
+    input_ids: torch.Tensor,
+    labels: torch.Tensor,
+    return_token_entropy: bool = False,
+    requires_grad: bool = True,
+    chunk_size: int = 64,   # number of tokens per forward pass
+):
+    "THIS IS PURELY AN EXPRIEMENT"
+    device = input_ids.device
+    B, T = input_ids.shape
+    log_probs_list = []
+    token_entropy_list = [] if return_token_entropy else None
+
+    model.eval()
+    context_manager = torch.enable_grad() if requires_grad else torch.no_grad()
+
+    with context_manager:
+        for start in range(0, T, chunk_size):
+            end = min(start + chunk_size, T)
+            input_chunk = input_ids[:, start:end]
+            label_chunk = labels[:, start:end]
+
+            logits = model(input_chunk).logits  # [B, chunk, V]
+
+            selected_logits = torch.gather(
+                logits, dim=-1, index=label_chunk.unsqueeze(-1)
+            ).squeeze(-1)  # [B, chunk]
+
+            logsumexp = torch.logsumexp(logits, dim=-1)  # [B, chunk]
+            chunk_log_probs = selected_logits - logsumexp  # [B, chunk]
+            log_probs_list.append(chunk_log_probs)
+
+            if return_token_entropy:
+                probs = torch.softmax(logits, dim=-1)
+                log_probs_tmp = torch.log(probs + 1e-12)
+                token_entropy = -(probs * log_probs_tmp).sum(dim=-1)
+                token_entropy_list.append(token_entropy)
+
+            # free memory
+            del logits
+            if return_token_entropy:
+                del probs, log_probs_tmp, token_entropy
+
+    log_probs = torch.cat(log_probs_list, dim=-1)  # [B, T]
+    final = {"log_probs": log_probs}
+
+    if return_token_entropy:
+        final["token_entropy"] = torch.cat(token_entropy_list, dim=-1)
+
+    return final
+    
+    
 def run_compute_naive_policy_gradient_loss_util(
         raw_rewards_or_advantages: torch.Tensor,
     policy_log_probs: torch.Tensor,
@@ -125,8 +224,12 @@ def run_compute_grpo_clip_loss_util(
             dict[str, torch.Tensor]: metadata for the GRPO-Clip loss
                 (used to compute clip fraction).
     """
+    #print("RUN COMPUTE GRPO CLI PLOSS UTIL", advantages)
+    #print("POLICY LOG PROBS", policy_log_probs)
+    #print("OLD LOG PROBS", old_log_probs)
 
     ratio = torch.exp(policy_log_probs - old_log_probs)
+    #print("RATIO", ratio)
 
 
     res = torch.min(
