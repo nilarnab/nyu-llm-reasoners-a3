@@ -19,6 +19,8 @@ from student.sec_7.sec7 import run_compute_policy_gradient_loss_util, run_masked
 from student.drgrpo_grader import question_only_reward_fn
 from vllm import SamplingParams
 from tqdm import tqdm
+import argparse
+
 import copy
 
 USE_VLLM = True
@@ -108,8 +110,7 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
         )
     else:
         test_subset = dataset["test"]
-        
-        
+
     val_loader = DataLoader(
         test_subset,  # update based on dataset.keys()
         batch_size=n_prompts_per_rollout_batch,
@@ -129,8 +130,8 @@ def run_grpo_microbatch_train_step_util(
         advantages: torch.Tensor | None = None,
         old_log_probs: torch.Tensor | None = None,
         cliprange: float | None = None,
-        wandb = None,
-        step_count = None,
+        wandb=None,
+        step_count=None,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Compute the policy gradient loss and backprop its gradients for a microbatch.
 
@@ -173,8 +174,8 @@ def run_grpo_microbatch_train_step_util(
     if wandb is not None and step_count is not None:
         if "clip_fraction" in metadata:
             wandb.log({
-                        "train/clip_fraction": metadata['clip_fraction'],
-                    }, step=step_count)
+                "train/clip_fraction": metadata['clip_fraction'],
+            }, step=step_count)
 
     # loss = loss_per_token.mean()
 
@@ -233,7 +234,7 @@ def run_grpo_training(
     # acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts)
     # wandb.log({"eval/accuracy": acc}, step=step_count)
     # print('EVAL', acc)
-    
+
     train_iter = iter(dataloader)
 
     for step in range(n_grpo_steps):
@@ -241,24 +242,24 @@ def run_grpo_training(
         questions_batch = next(train_iter)
 
         f = model_train.eval()
-        
+
         old_policy_model = copy.deepcopy(model_train).eval().to(device)
         for p in old_policy_model.parameters():
             p.requires_grad = False
-        
+
         if USE_VLLM:
             load_policy_into_vllm_instance(old_policy_model, eval_vllm_model)
 
         rollout_responses = []
         repeated_ground_truths = []
-        
+
         sampling_params = SamplingParams(
             temperature=sampling_temperature,
             min_tokens=sampling_min_tokens,
             max_tokens=sampling_max_tokens,
             stop=["</answer>"],
         )
-        
+
         if USE_VLLM:
             load_policy_into_vllm_instance(model_train, eval_vllm_model)
             for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
@@ -287,9 +288,9 @@ def run_grpo_training(
                         print("response:", response)
                         rollout_responses.append(response)
                         repeated_ground_truths.append(gt)
-        
-        # 
-        #for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
+
+        #
+        # for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
         #    for _ in range(group_size):
         #        # print("generating rollouts")
         #        # print("question:", question)
@@ -301,10 +302,14 @@ def run_grpo_training(
         #        print("response:", response[-50:])
         #        rollout_responses.append(response)
         #        repeated_ground_truths.append(gt)
-                
+
         print("got rollouts", len(rollout_responses), len(repeated_ground_truths))
         # print("response:", response)
         print("repeated gts:", repeated_ground_truths)
+        repeated_prompts = []
+        for question in questions_batch["prompts"]:
+            for _ in range(group_size):
+                repeated_prompts.append(question)
 
         advantages, raw_rewards, metadata_rewards = run_compute_group_normalized_rewards_util(
             reward_fn=question_only_reward_fn,
@@ -314,9 +319,9 @@ def run_grpo_training(
             advantage_eps=advantage_eps,
             normalize_by_std=use_std_normalization,
         )
-        
+
         print("got advantages, raw rewards and metadata rewards", advantages, raw_rewards, metadata_rewards)
-        
+
         train_reward_reportable = {f"train/reward/{key}": metadata_rewards[key] for key in metadata_rewards}
         wandb.log(train_reward_reportable, step=step_count)
 
@@ -324,13 +329,13 @@ def run_grpo_training(
 
         micro_train_batch_size = train_batch_size // gradient_accumulation_steps
         n_microbatches_per_rollout_batch = rollout_batch_size // micro_train_batch_size
-        
+
         # print("micro_train_batch_size", micro_train_batch_size)
         # print("n_microbatches_per_rollout_batch", n_microbatches_per_rollout_batch)
-        
+
         full_advantages = advantages
         full_raw_rewards = raw_rewards
-        
+
         model_train.train()
         for epoch_id in range(epochs_per_rollout_batch):
             print("EPOCH", epoch_id)
@@ -351,10 +356,10 @@ def run_grpo_training(
                 # CHANGE
                 # input_ids = tokenizer(responses, return_tensors="pt", padding=True).to(device).input_ids
                 # labels = input_ids.clone() # TODO: Have to understatd this one
-                # 
+                #
                 # input_ids_input = input_ids[:, :-1]
-                # labels_shifted = labels[:, 1:] 
-                # 
+                # labels_shifted = labels[:, 1:]
+                #
                 # # print("getting respons log probs")
                 # log_probs_dict = run_get_response_log_probs_util(
                 #     model=model_train,
@@ -362,26 +367,27 @@ def run_grpo_training(
                 #     labels=labels_shifted,             # : was labels (unshifted)
                 #     return_token_entropy=False
                 # )
-                # 
+                #
                 # log_prob = log_probs_dict['log_probs']
-                # 
+                #
                 # #  SHIFT DONE
                 # entropy = None
                 # # entropy = log_probs_dict['token_entropy']
                 # #  SHIFT DON
                 # resp_mask = (input_ids_input != tokenizer.pad_token_id).float()
-                
-                # 
-                #old_log_probs_dict = run_get_response_log_probs_util(
+
+                #
+                # old_log_probs_dict = run_get_response_log_probs_util(
                 #    model=old_policy_model,
                 #    input_ids=input_ids,
                 #    labels=labels,
                 #    return_token_entropy=False,
                 #    requires_grad=False,
-                #)
-                #old_log_probs = old_log_probs_dict['log_probs']
+                # )
+                # old_log_probs = old_log_probs_dict['log_probs']
 
-                questions = questions_batch["prompts"][start_index:end_index]  # grab corresponding prompts
+                # questions = questions_batch["prompts"][start_index:end_index]  # grab corresponding prompts
+                questions = repeated_prompts[start_index:end_index]
 
                 tokenized = run_tokenize_prompt_and_output_util(
                     prompt_strs=questions,
@@ -400,7 +406,7 @@ def run_grpo_training(
                     return_token_entropy=True
                 )
                 log_prob = log_probs_dict['log_probs']
-                entropy = log_probs_dict['entropy']
+                entropy = log_probs_dict['token_entropy']
 
                 if USE_VLLM:
                     old_log_probs_dict = run_get_response_log_probs_util(
@@ -420,7 +426,7 @@ def run_grpo_training(
                     #         return_token_entropy=False,
                     #     )
                     # old_log_probs = old_log_probs_dict['log_probs'].detach()
-                    
+
                 # print("got old log probabilities")
 
                 loss, metadata_loss = run_grpo_microbatch_train_step_util(
@@ -432,15 +438,18 @@ def run_grpo_training(
                     advantages=advantages,
                     old_log_probs=old_log_probs,
                     cliprange=grpo_clip,
+                    wandb=wandb,  # pass wandb
+                    step_count=step_count,
                 )
                 true_loss = loss.item() * gradient_accumulation_steps
-                
+
                 print("microbatch ran LOSS VALUE:", true_loss)
                 wandb.log({
                     "train/loss": true_loss,
                 }, step=step_count)
 
                 if entropy is not None:
+                    print("reporting entropy", entropy.mean().item())
                     wandb.log({
                         "train/entropy": entropy.mean().item()
                     }, step=step_count)
@@ -453,15 +462,26 @@ def run_grpo_training(
                     torch.nn.utils.clip_grad_norm_(model_train.parameters(), 1.0)
                     optimizer.step()
                     optimizer.zero_grad()
-                    step_count += 1
 
-        if step_count % eval_after == 0:
-            # 
+                step_count += 1
+
+            print("TAKING GRAD STEP after epoch", epoch_id)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model_train.parameters(), max_norm=1.0)
+            wandb.log({"train/grad_norm": grad_norm.item()}, step=step_count)
+            optimizer.step()
+            optimizer.zero_grad()
+
+
+        if step % eval_after == 0:
+            #
             # load_policy_into_vllm_instance(model_train, eval_vllm_model)
-            #acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts, sampling_temperature=sampling_temperature,sampling_max_tokens=sampling_max_tokens,sampling_min_tokens=sampling_min_tokens,stop_tokens=['</answer>'])
+            # acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts, sampling_temperature=sampling_temperature,sampling_max_tokens=sampling_max_tokens,sampling_min_tokens=sampling_min_tokens,stop_tokens=['</answer>'])
             if USE_VLLM:
                 load_policy_into_vllm_instance(model_train, eval_vllm_model)
-                acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts, sampling_temperature=sampling_temperature, sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens, stop_tokens=['</answer>'])
+                acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
+                                       sampling_temperature=sampling_temperature,
+                                       sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
+                                       stop_tokens=['</answer>'])
             else:
                 model_train.eval()
                 correct = 0
@@ -484,7 +504,7 @@ def run_grpo_training(
                         correct += int(reward_score['answer_reward'] > 0)
                         total += 1
                 acc = correct / total if total > 0 else 0
-        
+
             wandb.log({"eval/accuracy": acc}, step=step_count)
             reward_reportable = {f"eval/reward/{key}": reward[key] for key in reward}
             wandb.log(reward_reportable, step=step_count)
@@ -492,13 +512,18 @@ def run_grpo_training(
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--learning_rate", type=float, default=1e-5)
+    args = parser.parse_args()
+
     print("loading policy model")
     policy_model_name = "Qwen/Qwen2.5-Math-1.5B-Instruct"
     policy = AutoModelForCausalLM.from_pretrained(
         policy_model_name,
         torch_dtype=torch.bfloat16,
         device_map=TRAIN_DEVICE,
-        #load_in_8bit=True
+        # load_in_8bit=True
     )
     tokenizer = AutoTokenizer.from_pretrained(policy_model_name)
     print("==loaded==")
@@ -506,7 +531,8 @@ if __name__ == '__main__':
     # Hyper parameters
     # =======
     n_grpo_steps: int = 200
-    learning_rate: float = 1e-5
+    # learning_rate: float = 1e-5
+    learning_rate: float = args.learning_rate
     advantage_eps: float = 1e-6
     rollout_batch_size: int = 16
     group_size: int = 8
@@ -533,13 +559,13 @@ if __name__ == '__main__':
         betas=(0.9, 0.95),
     )
     # =====
-    
-    #n_prompts_per_rollout_batch = 1
-    #group_size = 2                     # 2 rollouts per question
-    #rollout_batch_size = n_prompts_per_rollout_batch * group_size  # 2
-    #train_batch_size = 2               # full batch per microbatch
-    #gradient_accumulation_steps = 1    # no accumulation
-    #epochs_per_rollout_batch = 1  
+
+    # n_prompts_per_rollout_batch = 1
+    # group_size = 2                     # 2 rollouts per question
+    # rollout_batch_size = n_prompts_per_rollout_batch * group_size  # 2
+    # train_batch_size = 2               # full batch per microbatch
+    # gradient_accumulation_steps = 1    # no accumulation
+    # epochs_per_rollout_batch = 1
 
     # n_prompts_per_rollout_batch = 1
     # group_size = 2                     # 2 rollouts per question
@@ -562,7 +588,7 @@ if __name__ == '__main__':
     # ===
 
     n_prompts_per_rollout_batch = rollout_batch_size // group_size
-    
+
     print("n_prompts_per_rollout_batch", n_prompts_per_rollout_batch)
 
     print("n_prompts_per_rollout_batch", n_prompts_per_rollout_batch)
@@ -572,7 +598,7 @@ if __name__ == '__main__':
         "student/data/countdown/dataset", n_prompts_per_rollout_batch, reduce_test=True
     )
 
-    # 
+    #
     eval_vllm_model = None
     if USE_VLLM:
         print("Loading initvllm in grpo")
@@ -583,13 +609,13 @@ if __name__ == '__main__':
             seed=2,
         )
         print("==loaded==")
-    #eval_vllm_model = init_vllm(
+    # eval_vllm_model = init_vllm(
     #    model_id=policy_model_name,
     #    device=VLLM_DEVICE,
     #    gpu_memory_utilization=gpu_memory_utilization,
     #    seed=2,
-    #)
-    #print("==loaded==")
+    # )
+    # print("==loaded==")
 
     # get eval data: prompt + gts
     eval_prompts = []
@@ -597,7 +623,7 @@ if __name__ == '__main__':
     for batch in test_dataloader:
         eval_prompts.extend(batch["prompts"])
         eval_gts.extend(batch["ground_truths"])
-        
+
     # call run grpo loop here
     run_grpo_training(
         policy,
@@ -612,20 +638,17 @@ if __name__ == '__main__':
         run_name=run_name,
 
         # GRPO PARAMETERS
-        n_grpo_steps = n_grpo_steps,
-        advantage_eps = advantage_eps,
-        rollout_batch_size = rollout_batch_size,
-        group_size = group_size,
-        sampling_temperature = sampling_temperature,
-        sampling_min_tokens = sampling_min_tokens,
-        sampling_max_tokens = sampling_max_tokens,
-        epochs_per_rollout_batch = epochs_per_rollout_batch,  # On-policy
-        train_batch_size = train_batch_size,  # On-policy
-        gradient_accumulation_steps = gradient_accumulation_steps,
-        loss_type = "grpo_clip",
-        use_std_normalization = use_std_normalization,
-        grpo_clip = 0.1,
-)
-
-
-
+        n_grpo_steps=n_grpo_steps,
+        advantage_eps=advantage_eps,
+        rollout_batch_size=rollout_batch_size,
+        group_size=group_size,
+        sampling_temperature=sampling_temperature,
+        sampling_min_tokens=sampling_min_tokens,
+        sampling_max_tokens=sampling_max_tokens,
+        epochs_per_rollout_batch=epochs_per_rollout_batch,  # On-policy
+        train_batch_size=train_batch_size,  # On-policy
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        loss_type="grpo_clip",
+        use_std_normalization=use_std_normalization,
+        grpo_clip=0.1,
+    )
