@@ -95,9 +95,9 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
 
     print("CATEGORIES: ", categories)
 
-    # print("CASES FORMAT REWARD 0: ", cases_format_0[:20])
+    #print("CASES FORMAT REWARD 0: ", cases_format_0[:10])
 
-    # print("CASES FORMAT REWARD 1 ANSWER REWARD 1:", cases_format_1_ans_0[:20])
+    #print("CASES FORMAT REWARD 1 ANSWER REWARD 0:", cases_format_1_ans_0[:10])
     for key in res:
         res[key] = res[key] / len(outputs)
 
@@ -141,7 +141,7 @@ def main():
     # dataset = load_from_disk(args.intellect_path)
     # if args.max_examples:
     #     dataset = dataset.select(range(min(args.max_examples, len(dataset))))
-    #
+    # 
     # prompts, gts = [], []
     # for ex in dataset:
     #     msgs = ex.get("messages", [])
@@ -149,7 +149,7 @@ def main():
     #     user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
     #     prompts.append(sys_msg + "\n\n" + user_msg if sys_msg else user_msg)
     #     gts.append(ex.get("ground_truth", ""))
-    #
+    # 
     # print(f"[Sample] {prompts[0][:200]}...")
     # acc, _ = evaluate(llm, prompts, gts)
     # print(f"Intellect Accuracy: {acc:.4f}")
@@ -163,9 +163,9 @@ def main():
     prompts = [prompt_template + "\n\n" + ex["problem"] for ex in math_ds]
     gts = [ex["answer"] for ex in math_ds]
 
-    logger.info("[Sample] %s...", prompts[0][:200])
+    print("[Sample] ", prompts[0][:200])
     acc, _ = evaluate(llm, prompts, gts)
-    logger.info("MATH Accuracy: %.4f", acc)
+    print("MATH Accuracy:", acc)
 
 
 if __name__ == "__main__":

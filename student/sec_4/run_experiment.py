@@ -247,6 +247,7 @@ def run_sft_loop(
                 print("Error occurred", error)
 
         if step_count % grad_accum_steps != 0:
+            torch.nn.utils.clip_grad_norm_(model_train.parameters(), 1.0)
             optimizer.step()
             optimizer.zero_grad()
 
@@ -279,7 +280,7 @@ def main():
 
 
     batch_size = 1
-    example_count = None
+    example_count = 512
     learning_rate = 1e-4
     grad_accum_steps = 16
     
@@ -358,6 +359,6 @@ def main():
 
     wandb.finish()
 
-
-main()
+if __name__ == '__main__':
+    main()
 

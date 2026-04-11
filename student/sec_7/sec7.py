@@ -56,13 +56,19 @@ def run_compute_group_normalized_rewards_util(
                 (some statistics of the rewards, etc.).
     """
     rewards = []
+    reward_log = defaultdict(lambda: 0)
     for i, rollout_response in enumerate(rollout_responses):
         reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
+        for key in reward_outp:
+            reward_log[key] += reward_outp[key]
         reward = reward_outp['reward']
         rewards.append(reward)
 
     # mean_rwd = np.mean(rewards)
     # std_rwd = np.std(rewards)
+
+    for key in reward_log:
+        reward_log[key] = reward_log[key] / len(rewards)
 
     reward_tensor = torch.tensor(rewards)
 
@@ -79,7 +85,7 @@ def run_compute_group_normalized_rewards_util(
     Advantage = Advantage.view(-1)
 
 
-    return Advantage, reward_tensor, {"reward_total": sum(rewards), "max_reward": max(rewards), "mean_reward": sum(rewards)/len(rewards), "min_reward": min(rewards)}
+    return Advantage, reward_tensor, reward_log
 
 
 def run_compute_naive_policy_gradient_loss_util(
@@ -127,17 +133,24 @@ def run_compute_grpo_clip_loss_util(
             dict[str, torch.Tensor]: metadata for the GRPO-Clip loss
                 (used to compute clip fraction).
     """
+    #print("RUN COMPUTE GRPO CLI PLOSS UTIL", advantages)
+    #print("POLICY LOG PROBS", policy_log_probs)
+    #print("OLD LOG PROBS", old_log_probs)
 
     ratio = torch.exp(policy_log_probs - old_log_probs)
+    #print("RATIO", ratio)
 
 
     res = torch.min(
         ratio * advantages, torch.clamp(ratio, 1 - cliprange, 1 + cliprange) * advantages
     )
+    clipped_mask = (ratio > 1 + cliprange) | (ratio < 1 - cliprange)
+
+    clip_fraction = clipped_mask.float().mean()
 
     loss = -res
 
-    return loss, {"clip_loss": res, "ratio": ratio}
+    return loss, {"clip_loss": res, "ratio": ratio, "clip_fraction": clip_fraction}
 
 
 def run_compute_policy_gradient_loss_util(
