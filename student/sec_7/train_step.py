@@ -510,7 +510,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--learning_rate", type=float, default=1e-5)
-    parser.add_argument("--loss_type", type=str, default="reinforce_with_baseline")
+    parser.add_argument("--loss_type", type=str, default="grpo_clip")
     parser.add_argument("--use_std", type=str, default="TRUE")
     args = parser.parse_args()
 
