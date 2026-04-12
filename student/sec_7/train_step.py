@@ -16,7 +16,7 @@ from student.sec_4.run_experiment import load_policy_into_vllm_instance, init_vl
 from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_masked_normalize_util
 from student.sec_7.sec7 import run_compute_policy_gradient_loss_util, run_masked_mean_util, \
     run_compute_group_normalized_rewards_util
-from student.drgrpo_grader import question_only_reward_fn
+from student.drgrpo_grader import question_only_reward_fn, question_only_reward_fn_format_countdown
 from vllm import SamplingParams
 from tqdm import tqdm
 import argparse
@@ -31,47 +31,31 @@ VLLM_DEVICE = "cuda:0"
 if USE_VLLM:
     VLLM_DEVICE = "cuda:1"
 
-
 def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42, reduce_test=False):
     def extract_question(text: str) -> str:
         if "User:" in text:
             text = text.split("User:")[-1]
-
         if "Show your work" in text:
             text = text.split("Show your work")[0]
-
         return text.strip()
 
     def format_prompt(question: str) -> str:
-        return f"""Answer the following problem. Explain your reasoning step by step. When you are finished, give your answer in this format: <answer>(your answer)</answer>.
+        return f"""Solve the following Countdown arithmetic problem. You must use each of the given numbers exactly once with basic arithmetic operations (+, -, *, /) to reach the target number.
 
-    Problem
-    {question}
+Problem:
+{question}
 
-    Your solution should include a series of steps "Step X:" where each step is a mathematical operation and the final step ultimately leads to the target number or it should be a single equation that results in the target.
+Show your working step by step, then give your final answer as the equation inside a \\boxed{{}} at the end.
 
-    Give your answer in the following format:
-    <answer>
-    (your answer)
-    </answer>
+For example:
+If the numbers are [1, 2, 3] and the target is 1, you could write:
 
-    Where "(your answer)" is the list of steps to reach the target number or it should be a single equation that results in the target.
+Step 1: 1 + 2 = 3
+Step 2: 3 / 3 = 1
 
-    For example:
-    If the list of numbers was [1, 2, 3] and the target was 1, you could write:
+\\boxed{{(1 + 2) / 3}}
 
-    <answer>
-    Step 1: 1 + 2 = 3
-    Step 2: 3 / 3 = 1
-    </answer>
-
-    or
-
-    <answer>
-    (1 + 2) / 3
-    </answer>
-
-    Let's think step by step."""
+Let's think step by step."""
 
     dataset = load_from_disk(dataset_path)
 
@@ -81,15 +65,16 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
         for item in batch:
             msgs = item["prompt"]
             user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
-
             question = extract_question(user_msg)
             prompt = format_prompt(question)
-
             prompts.append(prompt)
 
         return {
             "prompts": prompts,
-            "ground_truths": [str(item["target"]) for item in batch],
+            "ground_truths": [
+                {"target": item["target"], "numbers": item["nums"]}
+                for item in batch
+            ],
         }
 
     train_loader = DataLoader(
@@ -100,6 +85,7 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
         drop_last=True,
         generator=torch.Generator().manual_seed(seed),
     )
+
     if reduce_test:
         test_dataset = dataset["test"]
         test_subset_size = int(0.3 * len(test_dataset))
@@ -112,7 +98,7 @@ def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42
         test_subset = dataset["test"]
 
     val_loader = DataLoader(
-        test_subset,  # update based on dataset.keys()
+        test_subset,
         batch_size=n_prompts_per_rollout_batch,
         shuffle=True,
         collate_fn=collate_fn,
@@ -321,7 +307,7 @@ def run_grpo_training(
                 repeated_prompts.append(question)
 
         advantages, raw_rewards, metadata_rewards = run_compute_group_normalized_rewards_util(
-            reward_fn=question_only_reward_fn,
+            reward_fn=question_only_reward_fn_format_countdown,
             rollout_responses=rollout_responses,
             repeated_ground_truths=repeated_ground_truths,
             group_size=group_size,
@@ -606,7 +592,7 @@ if __name__ == '__main__':
 
     # get the dataloaders
     train_dataloader, test_dataloader = get_countdown_dataloaders(
-        "student/data/countdown/dataset", n_prompts_per_rollout_batch, reduce_test=True
+        "student/data/countdown/dataset", n_prompts_per_rollout_batch, reduce_test=False
     )
 
     #

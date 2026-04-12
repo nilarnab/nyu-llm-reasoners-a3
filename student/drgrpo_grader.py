@@ -1046,6 +1046,36 @@ def r1_zero_reward_fn(response, ground_truth, fast=True):
             "reward": 0.0
         }
 
+
+def check_numbers_used(expression: str, allowed_numbers: list) -> bool:
+    import re
+
+    numbers_in_expr = [int(x) for x in re.findall(r'\d+', expression)]
+
+    return sorted(numbers_in_expr) == sorted(allowed_numbers)
+
+def question_only_reward_fn_format_countdown(response, ground_truth, fast=True):
+    # Extract answer using existing helper - works for \boxed{}
+    model_answer = extract_answer(response)
+
+    if model_answer is None:
+        return {"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0}
+
+    target = str(ground_truth["target"])
+    allowed_numbers = ground_truth["numbers"]
+
+    # Check that the model used the allowed numbers
+    if not check_numbers_used(response, allowed_numbers):
+        return {"format_reward": 1.0, "answer_reward": 0.0, "reward": 0.0}
+
+    # Check correctness using existing grade function
+    is_correct = grade(model_answer, target, fast)
+
+    if is_correct:
+        return {"format_reward": 1.0, "answer_reward": 1.0, "reward": 1.0}
+    else:
+        return {"format_reward": 1.0, "answer_reward": 0.0, "reward": 0.0}
+
 def question_only_reward_fn_format(response, ground_truth, fast=True):
     model_answer = extract_answer(response)
     if model_answer is None:
