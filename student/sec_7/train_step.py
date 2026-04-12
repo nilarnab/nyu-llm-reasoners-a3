@@ -13,7 +13,7 @@ from torch.nn.utils.rnn import pad_sequence
 import student.utils as utils
 from student.evaluate import evaluate
 from student.sec_4.run_experiment import load_policy_into_vllm_instance, init_vllm, run_get_response_log_probs_util
-from student.sec_4.sec4 import run_tokenize_prompt_and_output_util
+from student.sec_4.sec4 import run_tokenize_prompt_and_output_util, run_masked_normalize_util
 from student.sec_7.sec7 import run_compute_policy_gradient_loss_util, run_masked_mean_util, \
     run_compute_group_normalized_rewards_util
 from student.drgrpo_grader import question_only_reward_fn
@@ -132,6 +132,7 @@ def run_grpo_microbatch_train_step_util(
         cliprange: float | None = None,
         wandb=None,
         step_count=None,
+        normalize_type = "masked_mean",
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Compute the policy gradient loss and backprop its gradients for a microbatch.
 
@@ -180,7 +181,15 @@ def run_grpo_microbatch_train_step_util(
     # loss = loss_per_token.mean()
 
     # print("loss initial 1 shape", loss_per_token.shape, loss_per_token)
-    masked_loss = run_masked_mean_util(loss_per_token, response_mask, dim=1)
+    if normalize_type == "masked_mean":
+        print("using masked mean")
+        masked_loss = run_masked_mean_util(loss_per_token, response_mask, dim=1)
+    elif normalize_type == "masked_normalize":
+        print("using masked normalize")
+        masked_loss = run_masked_normalize_util(loss_per_token, response_mask, dim=-1, normalize_constant=1024)
+    else:
+        raise Exception("Got normalize type that was not valid")
+
     # print("masked loss 1", masked_loss)
     masked_loss = masked_loss.mean()
     # print("masked loss 2", masked_loss)
@@ -515,6 +524,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--loss_type", type=str, default="reinforce_with_baseline")
+    parser.add_argument("--use_std", type=str, default="TRUE")
     args = parser.parse_args()
 
     print("loading policy model")
@@ -550,8 +561,8 @@ if __name__ == '__main__':
         "no_baseline",
         "reinforce_with_baseline",
         "grpo_clip",
-    ] = "reinforce_with_baseline"
-    use_std_normalization: bool = True
+    ] = args.loss_type
+    use_std_normalization: bool = args.use_std == "TRUE"
     optimizer = torch.optim.AdamW(
         policy.parameters(),
         lr=learning_rate,
@@ -648,7 +659,7 @@ if __name__ == '__main__':
         epochs_per_rollout_batch=epochs_per_rollout_batch,  # On-policy
         train_batch_size=train_batch_size,  # On-policy
         gradient_accumulation_steps=gradient_accumulation_steps,
-        loss_type="grpo_clip",
+        loss_type=loss_type,
         use_std_normalization=use_std_normalization,
         grpo_clip=0.1,
     )
