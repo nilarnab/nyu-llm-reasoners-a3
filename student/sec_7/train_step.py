@@ -511,7 +511,7 @@ def run_grpo_training(
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--learning_rate", type=float, default=1e-5)
+    parser.add_argument("--learning_rate", type=float, default=3e-5)
     parser.add_argument("--loss_type", type=str, default="grpo_clip")
     parser.add_argument("--use_std", type=str, default="TRUE")
     parser.add_argument("--normalize_type", type=str, default="masked_mean")
