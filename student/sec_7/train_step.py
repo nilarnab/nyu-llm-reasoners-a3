@@ -218,6 +218,7 @@ def run_grpo_training(
         ] = "reinforce_with_baseline",
         use_std_normalization: bool = True,
         grpo_clip=1.0,
+        normalize_type = "masked_mean",
 ):
     model_train.train()
     step_count = 0
@@ -435,6 +436,7 @@ def run_grpo_training(
                     cliprange=grpo_clip,
                     wandb=wandb,  # pass wandb
                     step_count=step_count,
+                    normalize_type=normalize_type,
                 )
                 true_loss = loss.item() * gradient_accumulation_steps
 
@@ -512,6 +514,7 @@ if __name__ == '__main__':
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--loss_type", type=str, default="grpo_clip")
     parser.add_argument("--use_std", type=str, default="TRUE")
+    parser.add_argument("--normalize_type", type=str, default="masked_mean")
     args = parser.parse_args()
 
     print("loading policy model")
@@ -549,6 +552,7 @@ if __name__ == '__main__':
         "grpo_clip",
     ] = args.loss_type
     use_std_normalization: bool = args.use_std == "TRUE"
+    normalize_type = args.normalize_type
     optimizer = torch.optim.AdamW(
         policy.parameters(),
         lr=learning_rate,
@@ -572,7 +576,7 @@ if __name__ == '__main__':
     # epochs_per_rollout_batch = 1
 
     # wandb things
-    run_name = f"GRPO-lt{loss_type}-ga{str(gradient_accumulation_steps)}-ngs{str(n_grpo_steps)}_lr{str(learning_rate)}"
+    run_name = f"GRPO-lt{loss_type}-ga{str(gradient_accumulation_steps)}-ngs{str(n_grpo_steps)}_lr{str(learning_rate)}_usestd{str(use_std_normalization)}_nt{normalize_type}"
     wandb.init(
         project=f"assignment-3-GRPO",
         name=run_name,
@@ -648,4 +652,5 @@ if __name__ == '__main__':
         loss_type=loss_type,
         use_std_normalization=use_std_normalization,
         grpo_clip=0.1,
+        normalize_type=normalize_type,
     )
