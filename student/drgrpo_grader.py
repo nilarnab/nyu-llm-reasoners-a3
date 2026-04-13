@@ -982,10 +982,20 @@ def grade_answer_mathd(given_answer: str, ground_truth: str) -> bool:
         return True
     return False
 
-def evaluate_expression(expr: str):
-    """Safely evaluate a arithmetic expression to a number string."""
+def evaluate_expression(expr: str) -> str:
+    """Safely evaluate an arithmetic expression to a number string."""
     try:
-        result = eval(expr, {"__builtins__": {}}, {})
+        # Replace LaTeX operators with Python operators
+        expr_clean = expr
+        expr_clean = expr_clean.replace("\\times", "*")
+        expr_clean = expr_clean.replace("\\cdot", "*")
+        expr_clean = expr_clean.replace("\\div", "/")
+        expr_clean = expr_clean.replace("{", "")
+        expr_clean = expr_clean.replace("}", "")
+        expr_clean = expr_clean.replace("\\left", "")
+        expr_clean = expr_clean.replace("\\right", "")
+
+        result = eval(expr_clean, {"__builtins__": {}}, {})
         return str(int(round(float(result))))
     except:
         return expr
