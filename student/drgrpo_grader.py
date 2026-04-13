@@ -982,6 +982,14 @@ def grade_answer_mathd(given_answer: str, ground_truth: str) -> bool:
         return True
     return False
 
+def evaluate_expression(expr: str):
+    """Safely evaluate a arithmetic expression to a number string."""
+    try:
+        result = eval(expr, {"__builtins__": {}}, {})
+        return str(int(round(float(result))))
+    except:
+        return expr
+
 
 def extract_answer(passage: str) -> str:
     if "\\boxed" in passage:
@@ -1050,13 +1058,16 @@ def r1_zero_reward_fn(response, ground_truth, fast=True):
 def check_numbers_used(expression: str, allowed_numbers: list) -> bool:
     import re
 
+    print("expression", expression)
+
     numbers_in_expr = [int(x) for x in re.findall(r'\d+', expression)]
+    print("numbers in expr", numbers_in_expr)
 
     return sorted(numbers_in_expr) == sorted(allowed_numbers)
 
 def question_only_reward_fn_format_countdown(response, ground_truth, fast=True):
-    # Extract answer using existing helper - works for \boxed{}
     model_answer = extract_answer(response)
+    print("extracted answer", model_answer)
 
     if model_answer is None:
         return {"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0}
@@ -1064,12 +1075,15 @@ def question_only_reward_fn_format_countdown(response, ground_truth, fast=True):
     target = str(ground_truth["target"])
     allowed_numbers = ground_truth["numbers"]
 
-    # Check that the model used the allowed numbers
-    if not check_numbers_used(response, allowed_numbers):
+    # Check numbers used in the raw expression before evaluating
+    if not check_numbers_used(model_answer, allowed_numbers):
+        print("not allowed numbers used")
         return {"format_reward": 1.0, "answer_reward": 0.0, "reward": 0.0}
 
-    # Check correctness using existing grade function
-    is_correct = grade(model_answer, target, fast)
+    # Evaluate the expression to a number, then grade
+    evaluated = evaluate_expression(model_answer)
+    print(f"expression '{model_answer}' evaluated to '{evaluated}', target '{target}'")
+    is_correct = grade(evaluated, target, fast)
 
     if is_correct:
         return {"format_reward": 1.0, "answer_reward": 1.0, "reward": 1.0}
@@ -1107,7 +1121,7 @@ def question_only_reward_fn_format(response, ground_truth, fast=True):
             "answer_reward": 0.0,
             "reward": 0.2
         }
-        
+
 
 def question_only_reward_fn(response, ground_truth, fast=True):
     model_answer = extract_answer(response)
