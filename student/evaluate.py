@@ -28,7 +28,7 @@ def load_prompt(name: str = "intellect") -> str:
     return path.read_text()
 
 
-def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None):
+def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None,reward_fn=question_only_reward_fn):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
@@ -50,7 +50,7 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
 
     for i, output in enumerate(tqdm(outputs, desc="Grading")):
         text = output.outputs[0].text
-        reward = question_only_reward_fn(text, ground_truths[i])
+        reward = reward_fn(text, ground_truths[i])
 
         for key in reward:
             res[key] += reward[key]
