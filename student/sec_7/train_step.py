@@ -478,7 +478,9 @@ def run_grpo_training(
                 acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
                                        sampling_temperature=sampling_temperature,
                                        sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
-                                       stop_tokens=['</answer>'])
+                                       stop_tokens=['</answer>'],
+                                       reward_fn=question_only_reward_fn_format_countdown,
+                                       )
             else:
                 model_train.eval()
                 correct = 0
