@@ -1,55 +1,52 @@
+import argparse
 import random
 
 from datasets import load_from_disk, load_dataset
 from torch.utils.data import DataLoader
 import torch
 
-
-def get_countdown_dataloaders(dataset_path, n_prompts_per_rollout_batch, seed=42):
-    dataset = load_from_disk(dataset_path)
-
-    def collate_fn(batch):
-        prompts = []
-        for item in batch:
-            msgs = item["prompt"]  # list of {"role": ..., "content": ...}
-            sys_msg  = next((m["content"] for m in msgs if m["role"] == "system"), "")
-            user_msg = next((m["content"] for m in msgs if m["role"] == "user"), "")
-            prompt = sys_msg + "\n\n" + user_msg if sys_msg else user_msg
-            prompts.append(prompt)
-
-        return {
-            "prompts": prompts,
-            "ground_truths": [str(item["target"]) for item in batch],
-        }
-
-    train_loader = DataLoader(
-        dataset["train"],
-        batch_size=n_prompts_per_rollout_batch,
-        shuffle=True,
-        collate_fn=collate_fn,
-        drop_last=True,
-        generator=torch.Generator().manual_seed(seed),
-    )
-    val_loader = DataLoader(
-        dataset["test"],  # update based on dataset.keys()
-        batch_size=n_prompts_per_rollout_batch,
-        shuffle=True,
-        collate_fn=collate_fn,
-        drop_last=False,
-    )
-    return train_loader, val_loader
+from student.drgrpo_grader import pit_reward_fn
+from student.evaluate import evaluate
+from student.sec_7.dataloader import get_gsm_adversarial_dataloaders
+from student.sec_7.defaults import MODEL_NAME
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 if __name__ == '__main__':
-    # train_dataloader, _ = get_countdown_dataloaders(
-    #     "student/data/countdown/dataset",1
-    # )
-    #
-    # batch = next(iter(train_dataloader))
-    # print(batch)
-    # print(batch["prompts"][0])
-    # print("---")
-    # print(batch["ground_truths"][0])
-    dataset = load_from_disk("student/data/countdown/dataset")
-    print(dataset["train"][random.randint(1, 100)])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_path", type=str, required=True)
+    args = parser.parse_args()
 
+    sampling_temperature: float = 0.7
+    sampling_min_tokens: int = 4
+    sampling_max_tokens: int = 1024
+
+    test_dataloader = get_gsm_adversarial_dataloaders(
+        dataset_path=args.dataset_path,
+        n_prompts_per_rollout_batch=2,
+        reduce=False
+    )
+
+    policy_model_name = MODEL_NAME
+    policy = AutoModelForCausalLM.from_pretrained(
+        policy_model_name,
+        torch_dtype=torch.bfloat16,
+        device_map="mps",
+    )
+
+    eval_prompts = []
+    eval_gts = []
+    for batch in test_dataloader:
+        eval_prompts.extend(batch["prompts"])
+        eval_gts.extend(batch["ground_truths"])
+
+    acc, reward = evaluate(policy, eval_prompts, eval_gts,
+                           sampling_temperature=sampling_temperature,
+                           sampling_max_tokens=sampling_max_tokens,
+                           sampling_min_tokens=sampling_min_tokens,
+                           stop_tokens=['</answer>'],
+                           reward_fn=pit_reward_fn,
+                           verbose=True
+                           )
+
+    print("acc", acc)

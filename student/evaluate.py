@@ -28,7 +28,7 @@ def load_prompt(name: str = "intellect") -> str:
     return path.read_text()
 
 
-def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None,reward_fn=question_only_reward_fn):
+def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None,reward_fn=question_only_reward_fn, verbose=False):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
@@ -56,6 +56,9 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
             res[key] += reward[key]
 
         correct += reward["reward"]
+
+        if verbose:
+            print("accuracy so far:", correct, i + 1, correct / (i + 1))
 
         if i < n_examples:
             example_rollouts.append({

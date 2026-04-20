@@ -1,3 +1,4 @@
+import os
 from typing import Callable, Literal
 
 import torch
@@ -365,15 +366,40 @@ def run_grpo_training(
             wandb.log(reward_reportable, step=step_count)
             print(f"Step {step_count} eval:", acc)
 
+            # SAVING THE MODEL
+            if acc > best_acc and run_name is not None:
+                best_acc = acc
+                os.makedirs("models", exist_ok=True)
+
+                # Delete an existing one so that we can have only one for instance
+                for existing in os.listdir("models"):
+                    if existing.endswith(f"_{run_name}"):
+                        existing_path = os.path.join("models", existing)
+                        import shutil
+                        shutil.rmtree(existing_path, ignore_errors=True)
+                        print(f"deleted old checkpnt: {existing_path}")
+
+                # Saving the new best
+                save_name = f"{acc:.4f}_{run_name}"
+                save_path = os.path.join("models", save_name)
+                model_train.save_pretrained(save_path)
+                tokenizer.save_pretrained(save_path)
+                print(f"saved new best model to {save_path} (acc={acc:.4f})")
+
+
+
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--loss_type", type=str, default="grpo_clip")
+    parser.add_argument("--train_dataset_path", type=str, default="student/data/pit/pit-train.jsonl")
+    parser.add_argument("--test_dataset_path", type=str, default="student/data/pit/pit-test.jsonl")
     parser.add_argument("--use_std", type=str, default="FALSE")
+    parser.add_argument("--reduce_test", type=str, default="TRUE")
     parser.add_argument("--normalize_type", type=str, default="masked_mean")
-    parser.add_argument("--eval_after", type=int, default=1)
+    parser.add_argument("--eval_after", type=int, default=5)
     args = parser.parse_args()
 
     print("loading policy model")
@@ -409,6 +435,7 @@ if __name__ == '__main__':
         "grpo_clip",
     ] = args.loss_type
     use_std_normalization: bool = args.use_std == "TRUE"
+    reduce_test = args.reduce_test == 'TRUE'
     normalize_type = args.normalize_type
     eval_after = int(args.eval_after)
     optimizer = torch.optim.AdamW(
@@ -443,12 +470,15 @@ if __name__ == '__main__':
     #     "student/data/countdown/dataset", n_prompts_per_rollout_batch, reduce_test=False
     # )
 
-    train_dataloader, test_dataloader = get_gsm_adversarial_dataloaders(
-        dataset_path="student/data/pit-all.jsonl",
+    train_dataloader = get_gsm_adversarial_dataloaders(
+        dataset_path=args.train_dataset_path,
         n_prompts_per_rollout_batch=n_prompts_per_rollout_batch,
-        seed=42,
-        train_split=0.8,
-        reduce_test=False
+    )
+
+    test_dataloader = get_gsm_adversarial_dataloaders(
+        dataset_path=args.test_dataset_path,
+        n_prompts_per_rollout_batch=n_prompts_per_rollout_batch,
+        reduce=reduce_test
     )
 
     #
