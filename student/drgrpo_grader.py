@@ -997,6 +997,20 @@ def extract_answer(passage: str) -> str:
     return None
 
 
+def extract_answer_pit(text: str):
+    if '####' in text:
+        parts = text.split('####')
+        answer_part = parts[-1].strip()
+        numbers = re.findall(r'-?\d+\.?\d*', answer_part)
+        if numbers:
+            return numbers[0]
+
+    numbers = re.findall(r'-?\d+\.?\d*', text)
+    if numbers:
+        return numbers[-1]
+    return None
+
+
 def grade(model_answer: str, gt_answer: str, fast: bool = True):
     if "\\boxed" in gt_answer:
         gt_answer = extract_answer(gt_answer)
@@ -1064,6 +1078,63 @@ def check_numbers_used(expression: str, allowed_numbers: list) -> bool:
     print("numbers in expr", numbers_in_expr)
 
     return sorted(numbers_in_expr) == sorted(allowed_numbers)
+
+
+
+def pit_grade(model_answer: str, gt_answer: str, fast: bool = True):
+    correct = grade_answer_mathd(model_answer, gt_answer) or grade_answer_sympy(
+        model_answer, gt_answer
+    )
+    if not fast:
+        # This mode further uses math_verify to recall originally false positives.
+        # Will be a bit slower, and sensitive to bad inputs.
+        correct = correct or is_latex_equal(
+            model_answer,
+            gt_answer,
+        )
+    return correct
+
+def pit_reward_fn(response, ground_truth, fast=True):
+    model_answer = extract_answer_pit(response)
+    print("extracted answer", model_answer, "ground_truth", ground_truth)
+    if model_answer is None:
+        print({"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0})
+        return {"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0}
+
+    if isinstance(ground_truth, float) or isinstance(ground_truth, int):
+        ground_truth = str(ground_truth)
+
+    ground_truth = ground_truth.strip().replace(",", "").replace(" ", "")
+    model_answer = model_answer.strip().replace(",", "").replace(" ", "")
+
+    is_correct = pit_grade(model_answer, ground_truth, fast)
+    print("IS CORRECT", is_correct)
+
+    if is_correct:
+        print({
+            "format_reward": 1.0,
+            "answer_reward": 1.0,
+            "reward": 1.0
+        })
+        return {
+            "format_reward": 1.0,
+            "answer_reward": 1.0,
+            "reward": 1.0
+        }
+
+    print({
+        "format_reward": 1.0,
+        "answer_reward": 0.0,
+        "reward": 0.0
+    })
+    return {
+        "format_reward": 1.0,
+        "answer_reward": 0.0,
+        "reward": 0.0
+    }
+
+
+
 
 def question_only_reward_fn_format_countdown(response, ground_truth, fast=True):
     model_answer = extract_answer(response)
