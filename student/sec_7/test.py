@@ -8,6 +8,7 @@ import torch
 from student.drgrpo_grader import pit_reward_fn
 from student.evaluate import evaluate
 from student.sec_7.dataloader import get_gsm_adversarial_dataloaders
+from student.sec_7.dataloader_normal import get_gsm_normal_dataloaders
 from student.sec_7.defaults import MODEL_NAME
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -15,23 +16,36 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_path", type=str, required=True)
+    parser.add_argument("--use_normal_dataloader", type=str, default="FALSE")
+    parser.add_argument("--reduce_to", type=float, default=1)
+
+
     args = parser.parse_args()
 
     sampling_temperature: float = 0.7
     sampling_min_tokens: int = 4
     sampling_max_tokens: int = 1024
 
-    test_dataloader = get_gsm_adversarial_dataloaders(
-        dataset_path=args.dataset_path,
-        n_prompts_per_rollout_batch=2,
-        reduce=False
-    )
+    use_normal_dataloader = args.use_normal_dataloader == "TRUE"
+
+    if not use_normal_dataloader:
+        test_dataloader = get_gsm_adversarial_dataloaders(
+            dataset_path=args.dataset_path,
+            n_prompts_per_rollout_batch=2,
+            reduce=args.reduce_to
+        )
+    else:
+        test_dataloader = get_gsm_normal_dataloaders(
+            dataset_path=args.dataset_path,
+            n_prompts_per_rollout_batch=2,
+            reduce=args.reduce_to
+        )
 
     policy_model_name = MODEL_NAME
     policy = AutoModelForCausalLM.from_pretrained(
         policy_model_name,
         torch_dtype=torch.bfloat16,
-        device_map="mps",
+        device_map="cuda",
     )
 
     eval_prompts = []
