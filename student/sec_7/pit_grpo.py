@@ -149,7 +149,12 @@ def run_grpo_training(
     best_acc = -1
     print("Running eval once first")
     load_policy_into_vllm_instance(model_train, eval_vllm_model)
-    acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+    acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
+                                           sampling_temperature=sampling_temperature,
+                                           sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
+                                           stop_tokens=['</answer>'],
+                                           reward_fn=pit_reward_fn,
+                                           )
     wandb.log({"eval/accuracy": acc}, step=step_count)
     print('EVAL', acc)
 

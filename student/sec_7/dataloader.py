@@ -18,7 +18,7 @@ class GSMAdversarialDataset(Dataset):
             for q, a in zip(adversarials, answers):
                 self.items.append({
                     "question": q,
-                    "answer": a,
+                    "answer": record["original_answer"],
                     "is_adversarial": True,
                 })
 
