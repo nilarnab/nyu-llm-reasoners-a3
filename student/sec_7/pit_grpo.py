@@ -147,11 +147,11 @@ def run_grpo_training(
     optimizer.zero_grad()
 
     best_acc = -1
-    # print("Running eval once first")
-    # load_policy_into_vllm_instance(model_train, eval_vllm_model)
-    # acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts)
-    # wandb.log({"eval/accuracy": acc}, step=step_count)
-    # print('EVAL', acc)
+    print("Running eval once first")
+    load_policy_into_vllm_instance(model_train, eval_vllm_model)
+    acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts)
+    wandb.log({"eval/accuracy": acc}, step=step_count)
+    print('EVAL', acc)
 
     train_iter = iter(dataloader)
 
