@@ -399,7 +399,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_dataset_path", type=str, default="student/data/pit/pit-train.jsonl")
     parser.add_argument("--test_dataset_path", type=str, default="student/data/pit/pit-test.jsonl")
     parser.add_argument("--use_std", type=str, default="FALSE")
-    parser.add_argument("--reduce_test", type=str, default="TRUE")
+    parser.add_argument("--reduce", type=float, default=0.3)
     parser.add_argument("--normalize_type", type=str, default="masked_mean")
     parser.add_argument("--eval_after", type=int, default=5)
     args = parser.parse_args()
@@ -437,7 +437,7 @@ if __name__ == '__main__':
         "grpo_clip",
     ] = args.loss_type
     use_std_normalization: bool = args.use_std == "TRUE"
-    reduce_test = args.reduce_test == 'TRUE'
+    reduce = args.reduce
     normalize_type = args.normalize_type
     eval_after = int(args.eval_after)
     optimizer = torch.optim.AdamW(
@@ -480,7 +480,7 @@ if __name__ == '__main__':
     test_dataloader = get_gsm_adversarial_dataloaders(
         dataset_path=args.test_dataset_path,
         n_prompts_per_rollout_batch=n_prompts_per_rollout_batch,
-        reduce=reduce_test
+        reduce=reduce
     )
 
     #
