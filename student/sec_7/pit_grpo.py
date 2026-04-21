@@ -161,232 +161,234 @@ def run_grpo_training(
 
         f = model_train.eval()
 
-        old_policy_model = copy.deepcopy(model_train).eval().to(device)
-        for p in old_policy_model.parameters():
-            p.requires_grad = False
+        try:
+            old_policy_model = copy.deepcopy(model_train).eval().to(device)
+            for p in old_policy_model.parameters():
+                p.requires_grad = False
 
-        if USE_VLLM:
-            load_policy_into_vllm_instance(old_policy_model, eval_vllm_model)
+            if USE_VLLM:
+                load_policy_into_vllm_instance(old_policy_model, eval_vllm_model)
 
-        rollout_responses = []
-        repeated_ground_truths = []
+            rollout_responses = []
+            repeated_ground_truths = []
 
-        sampling_params = SamplingParams(
-            temperature=sampling_temperature,
-            min_tokens=sampling_min_tokens,
-            max_tokens=sampling_max_tokens,
-            stop=["</answer>"],  # TODO: might need change
-        )
+            sampling_params = SamplingParams(
+                temperature=sampling_temperature,
+                min_tokens=sampling_min_tokens,
+                max_tokens=sampling_max_tokens,
+                stop=["</answer>"],  # TODO: might need change
+            )
 
-        if USE_VLLM:
-            load_policy_into_vllm_instance(model_train, eval_vllm_model)
-            for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
-                for _ in range(group_size):
-                    outputs = eval_vllm_model.generate(question, sampling_params=sampling_params)
-                    response = outputs[0].outputs[0].text
-                    print("this prompt:", question)
-                    print("this response:", response)
-                    rollout_responses.append(response)
-                    repeated_ground_truths.append(gt)
-        else:
-            with torch.no_grad():
-                for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
-                    inputs = tokenizer(question, return_tensors="pt").to(device)
-                    for _ in range(group_size):
-                        output = model_train.generate(
-                            **inputs,
-                            max_new_tokens=sampling_max_tokens,
-                            min_new_tokens=sampling_min_tokens,
-                            temperature=sampling_temperature,
-                            do_sample=True,
-                            pad_token_id=tokenizer.eos_token_id,
-                        )
-                        new_tokens = output[0][inputs["input_ids"].shape[1]:]
-                        response = tokenizer.decode(new_tokens, skip_special_tokens=True)
-                        print("response:", response)
-                        rollout_responses.append(response)
-                        repeated_ground_truths.append(gt)
-
-
-        print("got rollouts", len(rollout_responses), len(repeated_ground_truths))
-        # print("response:", response)
-        print("repeated gts:", repeated_ground_truths)
-        repeated_prompts = []
-        for question in questions_batch["prompts"]:
-            for _ in range(group_size):
-                repeated_prompts.append(question)
-
-        advantages, raw_rewards, metadata_rewards = run_compute_group_normalized_rewards_util(
-            reward_fn=pit_reward_fn,
-            rollout_responses=rollout_responses,
-            repeated_ground_truths=repeated_ground_truths,
-            group_size=group_size,
-            advantage_eps=advantage_eps,
-            normalize_by_std=use_std_normalization,
-        )
-
-        print("got advantages, raw rewards and metadata rewards", advantages, raw_rewards, metadata_rewards)
-
-        train_reward_reportable = {f"train/reward/{key}": metadata_rewards[key] for key in metadata_rewards}
-        wandb.log(train_reward_reportable, step=step_count)
-
-        print("got advantages, raw rewards and metadata rewards", advantages, raw_rewards, metadata_rewards)
-
-        micro_train_batch_size = train_batch_size // gradient_accumulation_steps
-        n_microbatches_per_rollout_batch = rollout_batch_size // micro_train_batch_size
-
-        full_advantages = advantages
-        full_raw_rewards = raw_rewards
-
-        model_train.train()
-        for epoch_id in range(epochs_per_rollout_batch):
-            print("EPOCH", epoch_id)
-            for i in range(n_microbatches_per_rollout_batch):
-                start_index = i * micro_train_batch_size
-                end_index = (i + 1) * micro_train_batch_size
-
-                responses = rollout_responses[start_index:end_index]
-
-                advantages = full_advantages[start_index:end_index].to(device).unsqueeze(1)
-                raw_rewards = full_raw_rewards[start_index:end_index].to(device).unsqueeze(1)
-
-                questions = repeated_prompts[start_index:end_index]
-
-                tokenized = run_tokenize_prompt_and_output_util(
-                    prompt_strs=questions,
-                    output_strs=responses,
-                    tokenizer=tokenizer,
-                )
-
-                input_ids_input = tokenized["input_ids"].to(device)
-                labels_shifted = tokenized["labels"].to(device)
-                resp_mask = tokenized["response_mask"].to(device).float()
-
-                log_probs_dict = run_get_response_log_probs_util(
-                    model=model_train,
-                    input_ids=input_ids_input,
-                    labels=labels_shifted,
-                    return_token_entropy=True
-                )
-                log_prob = log_probs_dict['log_probs']
-                entropy = log_probs_dict['token_entropy']
-
-                if USE_VLLM:
-                    old_log_probs_dict = run_get_response_log_probs_util(
-                        model=old_policy_model,
-                        input_ids=input_ids_input,
-                        labels=labels_shifted,
-                        return_token_entropy=False,
-                    )
-                    old_log_probs = old_log_probs_dict['log_probs']
-                else:
-                    raise Exception("We have to use VLLM")
-
-                loss, metadata_loss = run_grpo_microbatch_train_step_util(
-                    policy_log_probs=log_prob,
-                    response_mask=resp_mask,
-                    gradient_accumulation_steps=gradient_accumulation_steps,
-                    loss_type=loss_type,
-                    raw_rewards=raw_rewards,
-                    advantages=advantages,
-                    old_log_probs=old_log_probs,
-                    cliprange=grpo_clip,
-                    wandb=wandb,  # pass wandb
-                    step_count=step_count,
-                    normalize_type=normalize_type,
-                )
-                true_loss = loss.item() * gradient_accumulation_steps
-
-                print("microbatch ran LOSS VALUE:", true_loss)
-                wandb.log({
-                    "train/loss": true_loss,
-                }, step=step_count)
-
-                if entropy is not None:
-                    print("reporting entropy", entropy.mean().item())
-                    wandb.log({
-                        "train/entropy": entropy.mean().item()
-                    }, step=step_count)
-
-                if (i + 1) % gradient_accumulation_steps == 0:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model_train.parameters(), max_norm=1.0)
-                    wandb.log({
-                        "train/grad_norm": grad_norm.item()
-                    }, step=step_count)
-                    torch.nn.utils.clip_grad_norm_(model_train.parameters(), 1.0)
-                    optimizer.step()
-                    optimizer.zero_grad()
-
-                step_count += 1
-
-            print("TAKING GRAD STEP after epoch", epoch_id)
-            grad_norm = torch.nn.utils.clip_grad_norm_(model_train.parameters(), max_norm=1.0)
-            wandb.log({"train/grad_norm": grad_norm.item()}, step=step_count)
-            optimizer.step()
-            optimizer.zero_grad()
-
-
-        if step % eval_after == 0:
-            #
-            # load_policy_into_vllm_instance(model_train, eval_vllm_model)
-            # acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts, sampling_temperature=sampling_temperature,sampling_max_tokens=sampling_max_tokens,sampling_min_tokens=sampling_min_tokens,stop_tokens=['</answer>'])
             if USE_VLLM:
                 load_policy_into_vllm_instance(model_train, eval_vllm_model)
-                acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
-                                       sampling_temperature=sampling_temperature,
-                                       sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
-                                       stop_tokens=['</answer>'],
-                                       reward_fn=pit_reward_fn,
-                                       )
+                for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
+                    for _ in range(group_size):
+                        outputs = eval_vllm_model.generate(question, sampling_params=sampling_params)
+                        response = outputs[0].outputs[0].text
+                        print("this prompt:", question)
+                        print("this response:", response)
+                        rollout_responses.append(response)
+                        repeated_ground_truths.append(gt)
             else:
-                model_train.eval()
-                correct = 0
-                total = 0
-                print("Running eval")
                 with torch.no_grad():
-                    for prompt, gt in tqdm(zip(eval_prompts, eval_gts)):
-                        inputs = tokenizer(prompt, return_tensors="pt").to(device)
-                        output = model_train.generate(
-                            **inputs,
-                            max_new_tokens=sampling_max_tokens,
-                            min_new_tokens=sampling_min_tokens,
-                            temperature=sampling_temperature,
-                            do_sample=True,
-                            pad_token_id=tokenizer.eos_token_id,
+                    for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
+                        inputs = tokenizer(question, return_tensors="pt").to(device)
+                        for _ in range(group_size):
+                            output = model_train.generate(
+                                **inputs,
+                                max_new_tokens=sampling_max_tokens,
+                                min_new_tokens=sampling_min_tokens,
+                                temperature=sampling_temperature,
+                                do_sample=True,
+                                pad_token_id=tokenizer.eos_token_id,
+                            )
+                            new_tokens = output[0][inputs["input_ids"].shape[1]:]
+                            response = tokenizer.decode(new_tokens, skip_special_tokens=True)
+                            print("response:", response)
+                            rollout_responses.append(response)
+                            repeated_ground_truths.append(gt)
+
+
+            print("got rollouts", len(rollout_responses), len(repeated_ground_truths))
+            # print("response:", response)
+            print("repeated gts:", repeated_ground_truths)
+            repeated_prompts = []
+            for question in questions_batch["prompts"]:
+                for _ in range(group_size):
+                    repeated_prompts.append(question)
+
+            advantages, raw_rewards, metadata_rewards = run_compute_group_normalized_rewards_util(
+                reward_fn=pit_reward_fn,
+                rollout_responses=rollout_responses,
+                repeated_ground_truths=repeated_ground_truths,
+                group_size=group_size,
+                advantage_eps=advantage_eps,
+                normalize_by_std=use_std_normalization,
+            )
+
+            print("got advantages, raw rewards and metadata rewards", advantages, raw_rewards, metadata_rewards)
+
+            train_reward_reportable = {f"train/reward/{key}": metadata_rewards[key] for key in metadata_rewards}
+            wandb.log(train_reward_reportable, step=step_count)
+
+            print("got advantages, raw rewards and metadata rewards", advantages, raw_rewards, metadata_rewards)
+
+            micro_train_batch_size = train_batch_size // gradient_accumulation_steps
+            n_microbatches_per_rollout_batch = rollout_batch_size // micro_train_batch_size
+
+            full_advantages = advantages
+            full_raw_rewards = raw_rewards
+
+            model_train.train()
+            for epoch_id in range(epochs_per_rollout_batch):
+                print("EPOCH", epoch_id)
+                for i in range(n_microbatches_per_rollout_batch):
+                    start_index = i * micro_train_batch_size
+                    end_index = (i + 1) * micro_train_batch_size
+
+                    responses = rollout_responses[start_index:end_index]
+
+                    advantages = full_advantages[start_index:end_index].to(device).unsqueeze(1)
+                    raw_rewards = full_raw_rewards[start_index:end_index].to(device).unsqueeze(1)
+
+                    questions = repeated_prompts[start_index:end_index]
+
+                    tokenized = run_tokenize_prompt_and_output_util(
+                        prompt_strs=questions,
+                        output_strs=responses,
+                        tokenizer=tokenizer,
+                    )
+
+                    input_ids_input = tokenized["input_ids"].to(device)
+                    labels_shifted = tokenized["labels"].to(device)
+                    resp_mask = tokenized["response_mask"].to(device).float()
+
+                    log_probs_dict = run_get_response_log_probs_util(
+                        model=model_train,
+                        input_ids=input_ids_input,
+                        labels=labels_shifted,
+                        return_token_entropy=True
+                    )
+                    log_prob = log_probs_dict['log_probs']
+                    entropy = log_probs_dict['token_entropy']
+
+                    if USE_VLLM:
+                        old_log_probs_dict = run_get_response_log_probs_util(
+                            model=old_policy_model,
+                            input_ids=input_ids_input,
+                            labels=labels_shifted,
+                            return_token_entropy=False,
                         )
-                        new_tokens = output[0][inputs["input_ids"].shape[1]:]
-                        response = tokenizer.decode(new_tokens, skip_special_tokens=True)
-                        reward_score = pit_reward_fn([response], [gt])
-                        correct += int(reward_score['answer_reward'] > 0)
-                        total += 1
-                acc = correct / total if total > 0 else 0
+                        old_log_probs = old_log_probs_dict['log_probs']
+                    else:
+                        raise Exception("We have to use VLLM")
 
-            wandb.log({"eval/accuracy": acc}, step=step_count)
-            reward_reportable = {f"eval/reward/{key}": reward[key] for key in reward}
-            wandb.log(reward_reportable, step=step_count)
-            print(f"Step {step_count} eval:", acc)
+                    loss, metadata_loss = run_grpo_microbatch_train_step_util(
+                        policy_log_probs=log_prob,
+                        response_mask=resp_mask,
+                        gradient_accumulation_steps=gradient_accumulation_steps,
+                        loss_type=loss_type,
+                        raw_rewards=raw_rewards,
+                        advantages=advantages,
+                        old_log_probs=old_log_probs,
+                        cliprange=grpo_clip,
+                        wandb=wandb,  # pass wandb
+                        step_count=step_count,
+                        normalize_type=normalize_type,
+                    )
+                    true_loss = loss.item() * gradient_accumulation_steps
 
-            # SAVING THE MODEL
-            if acc > best_acc and run_name is not None:
-                best_acc = acc
-                os.makedirs("models", exist_ok=True)
+                    print("microbatch ran LOSS VALUE:", true_loss)
+                    wandb.log({
+                        "train/loss": true_loss,
+                    }, step=step_count)
 
-                # Delete an existing one so that we can have only one for instance
-                for existing in os.listdir("models"):
-                    if existing.endswith(f"_{run_name}"):
-                        existing_path = os.path.join("models", existing)
-                        import shutil
-                        shutil.rmtree(existing_path, ignore_errors=True)
-                        print(f"deleted old checkpnt: {existing_path}")
+                    if entropy is not None:
+                        print("reporting entropy", entropy.mean().item())
+                        wandb.log({
+                            "train/entropy": entropy.mean().item()
+                        }, step=step_count)
 
-                # Saving the new best
-                save_name = f"{acc:.4f}_{run_name}"
-                save_path = os.path.join("models", save_name)
-                model_train.save_pretrained(save_path)
-                tokenizer.save_pretrained(save_path)
-                print(f"saved new best model to {save_path} (acc={acc:.4f})")
+                    if (i + 1) % gradient_accumulation_steps == 0:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(model_train.parameters(), max_norm=1.0)
+                        wandb.log({
+                            "train/grad_norm": grad_norm.item()
+                        }, step=step_count)
+                        torch.nn.utils.clip_grad_norm_(model_train.parameters(), 1.0)
+                        optimizer.step()
+                        optimizer.zero_grad()
+
+                    step_count += 1
+
+                print("TAKING GRAD STEP after epoch", epoch_id)
+                grad_norm = torch.nn.utils.clip_grad_norm_(model_train.parameters(), max_norm=1.0)
+                wandb.log({"train/grad_norm": grad_norm.item()}, step=step_count)
+                optimizer.step()
+                optimizer.zero_grad()
 
 
+            if step % eval_after == 0:
+                #
+                # load_policy_into_vllm_instance(model_train, eval_vllm_model)
+                # acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts, sampling_temperature=sampling_temperature,sampling_max_tokens=sampling_max_tokens,sampling_min_tokens=sampling_min_tokens,stop_tokens=['</answer>'])
+                if USE_VLLM:
+                    load_policy_into_vllm_instance(model_train, eval_vllm_model)
+                    acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
+                                           sampling_temperature=sampling_temperature,
+                                           sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
+                                           stop_tokens=['</answer>'],
+                                           reward_fn=pit_reward_fn,
+                                           )
+                else:
+                    model_train.eval()
+                    correct = 0
+                    total = 0
+                    print("Running eval")
+                    with torch.no_grad():
+                        for prompt, gt in tqdm(zip(eval_prompts, eval_gts)):
+                            inputs = tokenizer(prompt, return_tensors="pt").to(device)
+                            output = model_train.generate(
+                                **inputs,
+                                max_new_tokens=sampling_max_tokens,
+                                min_new_tokens=sampling_min_tokens,
+                                temperature=sampling_temperature,
+                                do_sample=True,
+                                pad_token_id=tokenizer.eos_token_id,
+                            )
+                            new_tokens = output[0][inputs["input_ids"].shape[1]:]
+                            response = tokenizer.decode(new_tokens, skip_special_tokens=True)
+                            reward_score = pit_reward_fn([response], [gt])
+                            correct += int(reward_score['answer_reward'] > 0)
+                            total += 1
+                    acc = correct / total if total > 0 else 0
+
+                wandb.log({"eval/accuracy": acc}, step=step_count)
+                reward_reportable = {f"eval/reward/{key}": reward[key] for key in reward}
+                wandb.log(reward_reportable, step=step_count)
+                print(f"Step {step_count} eval:", acc)
+
+                # SAVING THE MODEL
+                if acc > best_acc and run_name is not None:
+                    best_acc = acc
+                    os.makedirs("models", exist_ok=True)
+
+                    # Delete an existing one so that we can have only one for instance
+                    for existing in os.listdir("models"):
+                        if existing.endswith(f"_{run_name}"):
+                            existing_path = os.path.join("models", existing)
+                            import shutil
+                            shutil.rmtree(existing_path, ignore_errors=True)
+                            print(f"deleted old checkpnt: {existing_path}")
+
+                    # Saving the new best
+                    save_name = f"{acc:.4f}_{run_name}"
+                    save_path = os.path.join("models", save_name)
+                    model_train.save_pretrained(save_path)
+                    tokenizer.save_pretrained(save_path)
+                    print(f"saved new best model to {save_path} (acc={acc:.4f})")
+
+        except Exception as error:
+            print("GRPO STEP", step, "SKIPPED", str(error))
 
 
 if __name__ == '__main__':
