@@ -11,11 +11,12 @@ from student.sec_7.dataloader import get_gsm_adversarial_dataloaders
 from student.sec_7.dataloader_normal import get_gsm_normal_dataloaders
 from student.sec_7.defaults import MODEL_NAME
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
+from vllm import LLM, SamplingParams
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_path", type=str, required=True)
+    parser.add_argument("--model_name", type=str, default=MODEL_NAME)
     parser.add_argument("--use_normal_dataloader", type=str, default="FALSE")
     parser.add_argument("--reduce_to", type=float, default=1)
 
@@ -41,11 +42,16 @@ if __name__ == '__main__':
             reduce=args.reduce_to
         )
 
-    policy_model_name = MODEL_NAME
-    policy = AutoModelForCausalLM.from_pretrained(
-        policy_model_name,
-        torch_dtype=torch.bfloat16,
-        device_map="cuda",
+    # policy_model_name = MODEL_NAME
+    # policy = AutoModelForCausalLM.from_pretrained(
+    #     policy_model_name,
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="cuda",
+    # )
+    llm = LLM(
+        model=args.model_name,
+        trust_remote_code=True,
+        gpu_memory_utilization=0.85,
     )
 
     eval_prompts = []
@@ -54,7 +60,7 @@ if __name__ == '__main__':
         eval_prompts.extend(batch["prompts"])
         eval_gts.extend(batch["ground_truths"])
 
-    acc, reward = evaluate(policy, eval_prompts, eval_gts,
+    acc, reward = evaluate(llm, eval_prompts, eval_gts,
                            sampling_temperature=sampling_temperature,
                            sampling_max_tokens=sampling_max_tokens,
                            sampling_min_tokens=sampling_min_tokens,

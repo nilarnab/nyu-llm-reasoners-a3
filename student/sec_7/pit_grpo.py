@@ -421,7 +421,8 @@ if __name__ == '__main__':
 
     # Hyper parameters
     # =======
-    n_grpo_steps: int = 200
+    # n_grpo_steps: int = 200
+    n_grpo_steps = 1000000000 # a very large value
     learning_rate: float = args.learning_rate
     advantage_eps: float = 1e-6
     rollout_batch_size: int = 16

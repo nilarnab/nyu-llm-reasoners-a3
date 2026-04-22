@@ -2,7 +2,8 @@ import torch
 
 
 # MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-MODEL_NAME = "nilarnabdebnath/qwen3-1.7b-gsm8k-sft"
+# MODEL_NAME = "nilarnabdebnath/qwen3-1.7b-gsm8k-sft"
+MODEL_NAME = "jahyungu/Qwen2.5-1.5B-Instruct_gsm8k"
 
 EXTERNAL_LLM = "openai/gpt-oss-20b:free"
 # EXTERNAL_LLM = "google/gemma-3n-e4b-it:free"
