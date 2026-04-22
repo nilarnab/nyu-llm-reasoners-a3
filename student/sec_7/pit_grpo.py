@@ -17,6 +17,8 @@ from student.drgrpo_grader import pit_reward_fn
 from vllm import SamplingParams
 from tqdm import tqdm
 import argparse
+from itertools import cycle, islice
+
 
 import copy
 
@@ -158,7 +160,8 @@ def run_grpo_training(
     wandb.log({"eval/accuracy": acc}, step=step_count)
     print('EVAL', acc)
 
-    train_iter = iter(dataloader)
+    # train_iter = iter(dataloader)
+    train_iter = cycle(dataloader)
 
     for step in range(n_grpo_steps):
         print("starting grpo step", step)
