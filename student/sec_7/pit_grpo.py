@@ -407,13 +407,15 @@ if __name__ == '__main__':
     parser.add_argument("--train_dataset_path", type=str, default="student/data/pit/pit-train.jsonl")
     parser.add_argument("--test_dataset_path", type=str, default="student/data/pit/pit-test.jsonl")
     parser.add_argument("--use_std", type=str, default="FALSE")
-    parser.add_argument("--reduce", type=float, default=0.3)
+    parser.add_argument("--reduce", type=float, default=1)
     parser.add_argument("--normalize_type", type=str, default="masked_mean")
     parser.add_argument("--eval_after", type=int, default=5)
+    parser.add_argument("--model_name", type=str, default=MODEL_NAME)
+
     args = parser.parse_args()
 
     print("loading policy model")
-    policy_model_name = MODEL_NAME
+    policy_model_name = args.model_name
     policy = AutoModelForCausalLM.from_pretrained(
         policy_model_name,
         torch_dtype=torch.bfloat16,

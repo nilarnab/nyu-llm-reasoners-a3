@@ -18,6 +18,7 @@ if __name__ == '__main__':
     parser.add_argument("--dataset_path", type=str, required=True)
     parser.add_argument("--model_name", type=str, default=MODEL_NAME)
     parser.add_argument("--use_normal_dataloader", type=str, default="FALSE")
+    parser.add_argument("--data_type", type=str, default="COMBINED")
     parser.add_argument("--reduce_to", type=float, default=1)
 
 
@@ -57,8 +58,25 @@ if __name__ == '__main__':
     eval_prompts = []
     eval_gts = []
     for batch in test_dataloader:
-        eval_prompts.extend(batch["prompts"])
-        eval_gts.extend(batch["ground_truths"])
+        if args.data_type == "CLEAN":
+            filtered = [
+                (p, gt) for p, gt, is_adv in zip(batch["prompts"], batch["ground_truths"], batch["is_adversarial"])
+                if not is_adv
+            ]
+        elif args.data_type == "ADV":
+            filtered = [
+                (p, gt) for p, gt, is_adv in zip(batch["prompts"], batch["ground_truths"], batch["is_adversarial"])
+                if is_adv
+            ]
+        else:
+            filtered = list(zip(batch["prompts"], batch["ground_truths"]))
+    
+        if filtered:
+            prompts, gts = zip(*filtered)
+            eval_prompts.extend(prompts)
+            eval_gts.extend(gts)
+        
+    print("data type", args.data_type, "examples", len(eval_prompts))
 
     acc, reward = evaluate(llm, eval_prompts, eval_gts,
                            sampling_temperature=sampling_temperature,
