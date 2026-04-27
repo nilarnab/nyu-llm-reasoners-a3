@@ -299,9 +299,9 @@ def run_grpo_training(
         #        rollout_responses.append(response)
         #        repeated_ground_truths.append(gt)
 
-        print("got rollouts", len(rollout_responses), len(repeated_ground_truths))
+        # print("got rollouts", len(rollout_responses), len(repeated_ground_truths))
         # print("response:", response)
-        print("repeated gts:", repeated_ground_truths)
+        # print("repeated gts:", repeated_ground_truths)
         repeated_prompts = []
         for question in questions_batch["prompts"]:
             for _ in range(group_size):

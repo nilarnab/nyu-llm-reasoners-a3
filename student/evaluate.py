@@ -28,7 +28,7 @@ def load_prompt(name: str = "intellect") -> str:
     return path.read_text()
 
 
-def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None,reward_fn=question_only_reward_fn, verbose=False):
+def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,sampling_max_tokens=2048,sampling_min_tokens=0,stop_tokens=None,reward_fn=question_only_reward_fn, verbose=False, give_example_rollouts=False):
     """Run evaluation and return accuracy."""
 
     res = defaultdict(lambda: 0)
@@ -96,7 +96,7 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
         # print(f"PROMPT: {prompts[i][:25]} | OUTPUT: {text[:25]} | REWARD: {reward} | REWARD SO FAR: {dict(res)}")
 
 
-    print("CATEGORIES: ", categories)
+    # print("CATEGORIES: ", categories)
 
     #print("CASES FORMAT REWARD 0: ", cases_format_0[:10])
 
@@ -104,7 +104,7 @@ def evaluate(llm, prompts, ground_truths,n_examples=3,sampling_temperature=0.0,s
     for key in res:
         res[key] = res[key] / len(outputs)
 
-    if example_rollouts:
+    if give_example_rollouts:
         print("\n=== Example Rollouts ===")
         for ex in example_rollouts:
             print(f"PROMPT: {ex['prompt']} ...")

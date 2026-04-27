@@ -1096,9 +1096,8 @@ def pit_grade(model_answer: str, gt_answer: str, fast: bool = True):
 
 def pit_reward_fn(response, ground_truth, fast=True):
     model_answer = extract_answer_pit(response)
-    print("extracted answer", model_answer, "ground_truth", ground_truth)
     if model_answer is None:
-        print({"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0})
+        # print({"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0})
         return {"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0}
 
     if isinstance(ground_truth, float) or isinstance(ground_truth, int):
@@ -1108,25 +1107,25 @@ def pit_reward_fn(response, ground_truth, fast=True):
     model_answer = model_answer.strip().replace(",", "").replace(" ", "")
 
     is_correct = pit_grade(model_answer, ground_truth, fast)
-    print("IS CORRECT", is_correct)
+    # print("IS CORRECT", is_correct)
 
     if is_correct:
-        print({
-            "format_reward": 1.0,
-            "answer_reward": 1.0,
-            "reward": 1.0
-        })
+        # print({
+        #     "format_reward": 1.0,
+        #     "answer_reward": 1.0,
+        #     "reward": 1.0
+        # })
         return {
             "format_reward": 1.0,
             "answer_reward": 1.0,
             "reward": 1.0
         }
 
-    print({
-        "format_reward": 1.0,
-        "answer_reward": 0.0,
-        "reward": 0.0
-    })
+    # print({
+    #     "format_reward": 1.0,
+    #     "answer_reward": 0.0,
+    #     "reward": 0.0
+    # })
     return {
         "format_reward": 1.0,
         "answer_reward": 0.0,

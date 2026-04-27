@@ -34,8 +34,8 @@ def convert_jsonl_to_json(input_path: str, output_path: str):
             for adv_question in adversarials:
                 rephrased_raw = (
                     f"Let me rephrase. "
-                    f"<rephrase>{format_prompt(original_raw)}</rephrase>. "
-                    f"{original_question}"
+                    f"<rephrase>{format_prompt(original_question)}</rephrase>. "
+                    f"{original_raw}"
                 )
                 entries.append({
                     "question": adv_question,
