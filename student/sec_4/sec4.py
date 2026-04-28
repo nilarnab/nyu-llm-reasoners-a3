@@ -28,7 +28,7 @@ def run_tokenize_prompt_and_output_util(
         prompt_ids = tokenizer.encode(prompt_str, add_special_tokens=False)
         output_ids = tokenizer.encode(output_str, add_special_tokens=False)
         
-        print("lengths: prompt", len(prompt_ids), "outpout", len(output_ids), "total", len(prompt_ids) + len(output_ids))
+        # print("lengths: prompt", len(prompt_ids), "outpout", len(output_ids), "total", len(prompt_ids) + len(output_ids))
         
         prompt_output_ids = prompt_ids + output_ids
 
@@ -40,7 +40,7 @@ def run_tokenize_prompt_and_output_util(
     pad_id = None
     if pad_id is None:
         pad_id = 128001 # that happens to be the pad id value
-    print("PAD ID", pad_id)
+    # print("PAD ID", pad_id)
 
     input_ids_padded = pad_sequence(
         input_ids, batch_first=True, padding_value=pad_id

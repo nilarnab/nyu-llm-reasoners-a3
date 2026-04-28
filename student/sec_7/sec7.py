@@ -165,7 +165,7 @@ def run_compute_policy_gradient_loss_util(
     Wrapper that delegates to the appropriate policy gradient loss function above.
     """
 
-    print("loss_type", loss_type)
+    # print("loss_type", loss_type)
 
     if loss_type == 'no_baseline':
         return run_compute_naive_policy_gradient_loss_util(
