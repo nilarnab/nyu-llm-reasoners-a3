@@ -191,7 +191,7 @@ def run_grpo_training(
                 load_policy_into_vllm_instance(model_train, eval_vllm_model)
                 print("MAKING ROLLOUTS")
                 for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
-                    print("this prompt:", question)
+                    print("this prompt:", question, "ground truth:", gt)
                     answers = []
                     for _ in range(group_size):
                         outputs = eval_vllm_model.generate(question, sampling_params=sampling_params)
