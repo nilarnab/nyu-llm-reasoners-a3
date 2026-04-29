@@ -13,7 +13,7 @@ from student.sec_7.dataloader import get_gsm_adversarial_dataloaders
 from student.sec_7.defaults import MODEL_NAME
 from student.sec_7.sec7 import run_compute_policy_gradient_loss_util, run_masked_mean_util, \
     run_compute_group_normalized_rewards_util
-from student.drgrpo_grader import pit_reward_fn, extract_answer_pit
+from student.drgrpo_grader import pit_reward_fn, extract_answer_pit, pit_reward_fn_consistent
 from vllm import SamplingParams
 from tqdm import tqdm
 import argparse
@@ -190,18 +190,38 @@ def run_grpo_training(
             if USE_VLLM:
                 load_policy_into_vllm_instance(model_train, eval_vllm_model)
                 print("MAKING ROLLOUTS")
-                for question, gt in zip(questions_batch["prompts"], questions_batch["ground_truths"]):
-                    print("this prompt:", question, "ground truth:", gt)
-                    answers = []
-                    for _ in range(group_size):
-                        outputs = eval_vllm_model.generate(question, sampling_params=sampling_params)
-                        response = outputs[0].outputs[0].text
-                        # print("this response:", response)
-                        answer = extract_answer_pit(response)
-                        answers.append(answer)
-                        rollout_responses.append(response)
-                        repeated_ground_truths.append(gt)
-                    print("Answer", answers)
+                rollout_responses = []  # list of groups
+                repeated_ground_truths = []  # list of groups
+                repeated_prompts = []  # list of groups
+
+                for q_group in questions_batch["question_groups"]:
+                    group_rollouts = []
+                    group_gts = []
+                    group_prompts = []
+
+                    prompts = q_group["prompts"]
+                    gts = q_group["ground_truths"]
+
+                    for question, gt in zip(prompts, gts):
+                        answers = []
+
+                        for _ in range(group_size):
+                            outputs = eval_vllm_model.generate(question, sampling_params=sampling_params)
+                            response = outputs[0].outputs[0].text
+
+                            answer = extract_answer_pit(response)
+                            answers.append(answer)
+
+                            group_rollouts.append(response)
+                            group_gts.append(gt)
+                            group_prompts.append(question)
+
+                        print("Prompt:", question[:100])
+                        print("Answers:", answers)
+
+                    rollout_responses.append(group_rollouts)
+                    repeated_ground_truths.append(group_gts)
+                    repeated_prompts.append(group_prompts)
 
                 # print("ROLLOUTS complete")
             else:
@@ -227,10 +247,6 @@ def run_grpo_training(
             # print("got rollouts", len(rollout_responses), len(repeated_ground_truths))
             # # print("response:", response)
             # print("repeated gts:", repeated_ground_truths)
-            repeated_prompts = []
-            for question in questions_batch["prompts"]:
-                for _ in range(group_size):
-                    repeated_prompts.append(question)
 
             advantages, raw_rewards, metadata_rewards = run_compute_group_normalized_rewards_util(
                 reward_fn=pit_reward_fn,
@@ -240,6 +256,9 @@ def run_grpo_training(
                 advantage_eps=advantage_eps,
                 normalize_by_std=use_std_normalization,
             )
+            print("Advantages:", advantages)
+            print("Raw Rewards:", raw_rewards)
+            print("metadata rewareds", metadata_rewards)
 
             # print("got advantages, raw rewards and metadata rewards", advantages, raw_rewards, metadata_rewards)
 
@@ -352,7 +371,7 @@ def run_grpo_training(
                                            sampling_temperature=sampling_temperature,
                                            sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
                                            stop_tokens=['</answer>'],
-                                           reward_fn=pit_reward_fn,
+                                           reward_fn=pit_reward_fn_consistent,
                                            )
                 else:
                     model_train.eval()
@@ -437,7 +456,8 @@ if __name__ == '__main__':
     n_grpo_steps = 1000000000 # a very large value
     learning_rate: float = args.learning_rate
     advantage_eps: float = 1e-6
-    rollout_batch_size: int = 16
+    # rollout_batch_size: int = 16
+    rollout_batch_size = 8
     group_size: int = 8
 
     sampling_temperature: float = 0.7
@@ -516,8 +536,9 @@ if __name__ == '__main__':
     eval_prompts = []
     eval_gts = []
     for batch in test_dataloader:
-        eval_prompts.extend(batch["prompts"])
-        eval_gts.extend(batch["ground_truths"])
+        for group in batch["question_groups"]:
+            eval_prompts.extend(group["prompts"])
+            eval_gts.extend(group["ground_truths"])
 
     # call run grpo loop here
     run_grpo_training(

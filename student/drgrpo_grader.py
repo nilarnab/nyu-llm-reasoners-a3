@@ -1094,10 +1094,87 @@ def pit_grade(model_answer: str, gt_answer: str, fast: bool = True):
         )
     return correct
 
+
+def pit_reward_fn_consistent(responses, ground_truths, fast=True):
+    rewards = []
+    answer_rewards = []
+    format_rewards = []
+    consistency_rewards = []
+    incorrect_consistency_rewards = []
+
+    model_answers = []
+    for group in responses:
+        model_answers_temp = []
+        for response in group:
+            model_answer = extract_answer_pit(response)
+            if model_answer is not None:
+                model_answers_temp.append(
+                    model_answer.strip().replace(",", "").replace(" ", "")
+                )
+            else:
+                model_answers_temp.append(None)
+        model_answers.append(model_answers_temp[:])
+
+    for i in range(len(model_answers)):
+        for j in range(len(model_answers[i])):
+
+            ans = model_answers[i][j]
+
+            gt = ground_truths[i][j]
+            if isinstance(gt, (float, int)):
+                gt = str(gt)
+
+            gt = str(gt).strip().replace(",", "").replace(" ", "")
+
+            if ans is None:
+                format_rewards.append(0)
+                rewards.append(0)
+                answer_rewards.append(0)
+                consistency_rewards.append(0)
+                incorrect_consistency_rewards.append(0)
+                continue
+
+            format_rewards.append(1)
+
+            rw_val = 0
+            const_val = 0
+            inc_const_val = 0
+
+            is_correct = pit_grade(ans, gt, fast)
+
+            if is_correct:
+                rw_val += 1
+                answer_rewards.append(1)
+            else:
+                answer_rewards.append(0)
+
+            # consistency (UNCHANGED)
+            for i1 in range(len(model_answers)):
+                if i1 != i:
+                    for j1 in range(len(model_answers[i1])):
+                        if model_answers[i1][j1] is not None and model_answers[i1][j1] == ans:
+                            const_val += 0.02
+                            rw_val += 0.02
+
+                            if not is_correct:
+                                inc_const_val += 0.02
+
+            rewards.append(rw_val)
+            consistency_rewards.append(const_val)
+            incorrect_consistency_rewards.append(inc_const_val)
+
+    return {
+        "reward": rewards,
+        "answer_reward": answer_rewards,
+        "format_reward": format_rewards,
+        "consistency_reward": consistency_rewards,
+        "incorrect_consistency_rewards": incorrect_consistency_rewards
+    }
+
+
 def pit_reward_fn(response, ground_truth, fast=True):
     model_answer = extract_answer_pit(response)
     if model_answer is None:
-        # print({"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0})
         return {"format_reward": 0.0, "answer_reward": 0.0, "reward": 0.0}
 
     if isinstance(ground_truth, float) or isinstance(ground_truth, int):
@@ -1107,25 +1184,14 @@ def pit_reward_fn(response, ground_truth, fast=True):
     model_answer = model_answer.strip().replace(",", "").replace(" ", "")
 
     is_correct = pit_grade(model_answer, ground_truth, fast)
-    # print("IS CORRECT", is_correct)
 
     if is_correct:
-        # print({
-        #     "format_reward": 1.0,
-        #     "answer_reward": 1.0,
-        #     "reward": 1.0
-        # })
         return {
             "format_reward": 1.0,
             "answer_reward": 1.0,
             "reward": 1.0
         }
 
-    # print({
-    #     "format_reward": 1.0,
-    #     "answer_reward": 0.0,
-    #     "reward": 0.0
-    # })
     return {
         "format_reward": 1.0,
         "answer_reward": 0.0,

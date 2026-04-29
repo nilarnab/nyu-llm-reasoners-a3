@@ -57,18 +57,21 @@ def run_compute_group_normalized_rewards_util(
     """
     rewards = []
     reward_log = defaultdict(lambda: 0)
-    for i, rollout_response in enumerate(rollout_responses):
-        reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
-        for key in reward_outp:
-            reward_log[key] += reward_outp[key]
-        reward = reward_outp['reward']
-        rewards.append(reward)
+    # for i, rollout_response in enumerate(rollout_responses):
+    #     reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
+    #     for key in reward_outp:
+    #         reward_log[key] += reward_outp[key]
+    #     reward = reward_outp['reward']
+    #     rewards.append(reward)
+
+    reward_outp = reward_fn(rollout_responses, repeated_ground_truths)
+    rewards = reward_outp['reward']
 
     # mean_rwd = np.mean(rewards)
     # std_rwd = np.std(rewards)
 
-    for key in reward_log:
-        reward_log[key] = reward_log[key] / len(rewards)
+    for key in reward_outp:
+        reward_log[key] = sum(reward_outp[key]) / len(rewards)
 
     reward_tensor = torch.tensor(rewards)
 
