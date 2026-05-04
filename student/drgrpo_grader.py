@@ -1172,6 +1172,114 @@ def pit_reward_fn_consistent(responses, ground_truths, fast=True):
     }
 
 
+def normalize_reasoning(text: str):
+    """
+    Removes answer + normalizes reasoning so similarity focuses on structure.
+    """
+    if text is None:
+        return ""
+
+    # remove final answer section
+    if "####" in text:
+        text = text.split("####")[0]
+
+    text = text.lower()
+
+    # normalize numbers
+    text = re.sub(r'\d+\.?\d*', 'NUM', text)
+
+    # keep only basic tokens + math ops
+    text = re.sub(r'[^a-z0-9+\-*/= ]', ' ', text)
+
+    # collapse whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
+
+
+def jaccard_similarity(a_tokens, b_tokens):
+    if not a_tokens or not b_tokens:
+        return 0.0
+
+    inter = len(a_tokens & b_tokens)
+    union = len(a_tokens | b_tokens)
+
+    return inter / union if union > 0 else 0.0
+
+
+def get_similarity_reward(resp1: str, resp2: str) -> float:
+    """
+    Returns similarity in [0,1]
+    1 = identical reasoning
+    0 = completely different reasoning
+    """
+
+    r1 = normalize_reasoning(resp1)
+    r2 = normalize_reasoning(resp2)
+
+    tokens1 = set(r1.split())
+    tokens2 = set(r2.split())
+
+    return jaccard_similarity(tokens1, tokens2)
+
+
+def pit_reward_fn_diverse(responses, ground_truths, fast=True):
+    model_answers = []
+    for response in responses:
+        model_answer = extract_answer_pit(response)
+        if model_answer is not None:
+            model_answers.append(
+                model_answer.strip().replace(",", "").replace(" ", "")
+            )
+        else:
+            model_answers.append(None)
+
+
+    for i in range(len(ground_truths)):
+        ground_truths[i] = ground_truths[i].strip().replace(",", "").replace(" ", "")
+
+    sims = []
+    for i in range(len(responses)):
+        sim_score = 0
+        for j in range(len(responses)):
+            if i != j:
+                sim_score += get_similarity_reward(responses[i], responses[j])
+        sim_score = sim_score / (2 * (len(responses) - 1))
+        sims.append(sim_score)
+
+    rewards = []
+    answer_rewards = []
+    format_rewards = []
+    sim_rewards = []
+    for i in range(len(model_answers)):
+        if model_answers[i] is None:
+            rewards.append(0)
+            answer_rewards.append(0)
+            format_rewards.append(0)
+            sim_rewards.append(0)
+            continue
+        is_correct = pit_grade(model_answers[i], ground_truths[i], fast)
+
+        if is_correct:
+            score = 1 - sims[i]
+            rewards.append(score)
+            answer_rewards.append(1)
+            format_rewards.append(1)
+            sim_rewards.append(-sims[i])
+        else:
+            rewards.append(0)
+            answer_rewards.append(0)
+            format_rewards.append(1)
+            sim_rewards.append(0)
+
+    return {
+        "reward": rewards,
+        "answer_reward": answer_rewards,
+        "format_reward": format_rewards,
+        "similarity_rewards": sim_rewards
+    }
+
+
 def pit_reward_fn(response, ground_truth, fast=True):
     model_answer = extract_answer_pit(response)
     if model_answer is None:

@@ -19,6 +19,7 @@ def run_compute_group_normalized_rewards_util(
     group_size: int,
     advantage_eps: float,
     normalize_by_std: bool,
+    aggregate_type = "NORMAL"
 ) -> tuple[torch.Tensor, dict[str, float]]:
     """
     Compute rewards for each group of rollout responses,
@@ -57,18 +58,18 @@ def run_compute_group_normalized_rewards_util(
     """
     rewards = []
     reward_log = defaultdict(lambda: 0)
-    # for i, rollout_response in enumerate(rollout_responses):
-    #     reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
-    #     for key in reward_outp:
-    #         reward_log[key] += reward_outp[key]
-    #     reward = reward_outp['reward']
-    #     rewards.append(reward)
-
-    reward_outp = reward_fn(rollout_responses, repeated_ground_truths)
-    rewards = reward_outp['reward']
-
-    # mean_rwd = np.mean(rewards)
-    # std_rwd = np.std(rewards)
+    if aggregate_type == "NORMAL":
+        for i, rollout_response in enumerate(rollout_responses):
+            reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
+            for key in reward_outp:
+                reward_log[key] += reward_outp[key]
+            reward = reward_outp['reward']
+            rewards.append(reward)
+    elif aggregate_type == "CONSISTENCY":
+        reward_outp = reward_fn(rollout_responses, repeated_ground_truths)
+        rewards = reward_outp['reward']
+    else:
+        raise Exception("Unknown aggregate type found in run_compute_group_normalize_rewards_util")
 
     for key in reward_outp:
         reward_log[key] = sum(reward_outp[key]) / len(rewards)
