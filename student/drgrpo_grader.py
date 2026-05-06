@@ -365,7 +365,6 @@ SUBSTITUTIONS = [
     ("\\text{m}", "\\text{}"),
 ]
 
-
 REMOVED_EXPRESSIONS = [
     "square",
     "ways",
@@ -605,7 +604,7 @@ def is_latex_equal(given_answer: str, ground_truth: str) -> bool:
         with timeout(1):
             try:
                 if (len(given_answer) > 128 and repeatness(given_answer)) or (
-                    len(ground_truth) > 128 and repeatness(ground_truth)
+                        len(ground_truth) > 128 and repeatness(ground_truth)
                 ):
                     return False
                 # First conduct normalized string matching.
@@ -680,8 +679,8 @@ def _sympy_parse(expr: str):
     return sympy_parser.parse_expr(
         py_expr,
         transformations=(
-            sympy_parser.standard_transformations
-            + (sympy_parser.implicit_multiplication_application,)
+                sympy_parser.standard_transformations
+                + (sympy_parser.implicit_multiplication_application,)
         ),
     )
 
@@ -877,10 +876,10 @@ def split_tuple(expr: str):
     if len(expr) == 0:
         return []
     if (
-        len(expr) > 2
-        and expr[0] in TUPLE_CHARS
-        and expr[-1] in TUPLE_CHARS
-        and all([ch not in expr[1:-1] for ch in TUPLE_CHARS])
+            len(expr) > 2
+            and expr[0] in TUPLE_CHARS
+            and expr[-1] in TUPLE_CHARS
+            and all([ch not in expr[1:-1] for ch in TUPLE_CHARS])
     ):
         elems = [elem.strip() for elem in expr[1:-1].split(",")]
     else:
@@ -911,7 +910,7 @@ def last_boxed_only_string(string):
     if right_brace_idx == None:
         retval = None
     else:
-        retval = string[idx : right_brace_idx + 1]
+        retval = string[idx: right_brace_idx + 1]
 
     return retval
 
@@ -921,7 +920,7 @@ def remove_boxed(s):
     try:
         assert s[: len(left)] == left
         assert s[-1] == "}"
-        return s[len(left) : -1]
+        return s[len(left): -1]
     except:
         return None
 
@@ -950,8 +949,8 @@ def grade_answer_sympy(given_answer: str, ground_truth: str) -> bool:
     given_elems = split_tuple(given_normalized)
 
     if len(ground_truth_elems) > 1 and (
-        ground_truth_normalized[0] != given_normalized[0]
-        or ground_truth_normalized[-1] != given_normalized[-1]
+            ground_truth_normalized[0] != given_normalized[0]
+            or ground_truth_normalized[-1] != given_normalized[-1]
     ):
         is_correct = False
     elif len(ground_truth_elems) != len(given_elems):
@@ -981,6 +980,7 @@ def grade_answer_mathd(given_answer: str, ground_truth: str) -> bool:
     if ground_truth_normalized_mathd == given_answer_normalized_mathd:
         return True
     return False
+
 
 def evaluate_expression(expr: str):
     """Safely evaluate a arithmetic expression to a number string."""
@@ -1080,7 +1080,6 @@ def check_numbers_used(expression: str, allowed_numbers: list) -> bool:
     return sorted(numbers_in_expr) == sorted(allowed_numbers)
 
 
-
 def pit_grade(model_answer: str, gt_answer: str, fast: bool = True):
     correct = grade_answer_mathd(model_answer, gt_answer) or grade_answer_sympy(
         model_answer, gt_answer
@@ -1114,6 +1113,8 @@ def pit_reward_fn_consistent(responses, ground_truths, fast=True):
             else:
                 model_answers_temp.append(None)
         model_answers.append(model_answers_temp[:])
+
+    print("reward function, model_answers", model_answers)
 
     for i in range(len(model_answers)):
         for j in range(len(model_answers[i])):
@@ -1225,6 +1226,8 @@ def get_similarity_reward(resp1: str, resp2: str) -> float:
 
 def pit_reward_fn_diverse(responses, ground_truths, fast=True):
     model_answers = []
+
+    # extract model answers
     for response in responses:
         model_answer = extract_answer_pit(response)
         if model_answer is not None:
@@ -1234,6 +1237,83 @@ def pit_reward_fn_diverse(responses, ground_truths, fast=True):
         else:
             model_answers.append(None)
 
+    # clean ground truths (avoid in-place mutation bugs)
+    ground_truths = [
+        gt.strip().replace(",", "").replace(" ", "")
+        for gt in ground_truths
+    ]
+
+    # compute correctness first
+    is_correct_list = []
+    for i in range(len(model_answers)):
+        if model_answers[i] is None:
+            is_correct_list.append(False)
+        else:
+            is_correct_list.append(
+                pit_grade(model_answers[i], ground_truths[i], fast)
+            )
+
+    # initialize similarity scores
+    sims = [0.0 for _ in range(len(responses))]
+
+    # only compare correct answers with other correct answers
+    correct_indices = [i for i, c in enumerate(is_correct_list) if c]
+
+    for i in correct_indices:
+        sim_score = 0.0
+        count = 0
+
+        for j in correct_indices:
+            if i != j:
+                sim_score += get_similarity_reward(responses[i], responses[j])
+                count += 1
+
+        sims[i] = sim_score / count if count > 0 else 0.0
+
+    # build rewards
+    rewards = []
+    answer_rewards = []
+    format_rewards = []
+    sim_rewards = []
+
+    for i in range(len(model_answers)):
+        if model_answers[i] is None:
+            rewards.append(0.0)
+            answer_rewards.append(0.0)
+            format_rewards.append(0.0)
+            sim_rewards.append(0.0)
+            continue
+
+        if is_correct_list[i]:
+            score = 1.0 - sims[i]
+            rewards.append(score)
+            answer_rewards.append(1.0)
+            format_rewards.append(1.0)
+            sim_rewards.append(-sims[i])
+        else:
+            rewards.append(0.0)
+            answer_rewards.append(0.0)
+            format_rewards.append(1.0)
+            sim_rewards.append(0.0)
+
+    return {
+        "reward": rewards,
+        "answer_reward": answer_rewards,
+        "format_reward": format_rewards,
+        "similarity_rewards": sim_rewards
+    }
+
+
+def pit_reward_fn_diverse_old(responses, ground_truths, fast=True):
+    model_answers = []
+    for response in responses:
+        model_answer = extract_answer_pit(response)
+        if model_answer is not None:
+            model_answers.append(
+                model_answer.strip().replace(",", "").replace(" ", "")
+            )
+        else:
+            model_answers.append(None)
 
     for i in range(len(ground_truths)):
         ground_truths[i] = ground_truths[i].strip().replace(",", "").replace(" ", "")
@@ -1307,8 +1387,6 @@ def pit_reward_fn(response, ground_truth, fast=True):
     }
 
 
-
-
 def question_only_reward_fn_format_countdown(response, ground_truth, fast=True):
     model_answer = extract_answer(response)
     print("extracted answer", model_answer)
@@ -1333,6 +1411,7 @@ def question_only_reward_fn_format_countdown(response, ground_truth, fast=True):
         return {"format_reward": 1.0, "answer_reward": 1.0, "reward": 1.0}
     else:
         return {"format_reward": 1.0, "answer_reward": 0.0, "reward": 0.0}
+
 
 def question_only_reward_fn_format(response, ground_truth, fast=True):
     model_answer = extract_answer(response)

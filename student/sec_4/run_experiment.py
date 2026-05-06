@@ -21,7 +21,6 @@ import wandb
 TRAIN_DEVICE = "cuda:0"
 VLLM_DEVICE = "cuda:1"
 
-
 os.environ["WANDB_API_KEY"] = "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"
 wandb.login(key=os.environ["WANDB_API_KEY"])
 
@@ -46,6 +45,7 @@ def get_eval_intellect_dataloader(dataset_path, example_count, batch_size):
 
     dataset = Dataset.from_dict({"prompt": prompts, "response": responses})
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
 
 def get_eval_math_dataloader(example_count, batch_size, dataset_path="hiyouga/math12k"):
     prompt_template = load_prompt("intellect")
@@ -73,17 +73,18 @@ def init_vllm(model_id: str, device: str, seed: int, gpu_memory_utilization: flo
     # (2) avoid a test that is not designed for our setting (profiling_patch).
     world_size_patch = patch("torch.distributed.get_world_size", return_value=1)
     profiling_patch = patch(
-    "vllm.worker.worker.Worker._assert_memory_footprint_increased_during_profiling",
-    return_value=None
+        "vllm.worker.worker.Worker._assert_memory_footprint_increased_during_profiling",
+        return_value=None
     )
     with world_size_patch, profiling_patch:
         return LLM(
-        model=model_id,
-        device=device,
-        dtype=torch.bfloat16,
-        enable_prefix_caching=True,
-        gpu_memory_utilization=gpu_memory_utilization,
+            model=model_id,
+            device=device,
+            dtype=torch.bfloat16,
+            enable_prefix_caching=True,
+            gpu_memory_utilization=gpu_memory_utilization,
         )
+
 
 def load_policy_into_vllm_instance(policy: PreTrainedModel, llm: LLM):
     """
@@ -93,11 +94,11 @@ def load_policy_into_vllm_instance(policy: PreTrainedModel, llm: LLM):
     state_dict = policy.state_dict()
     llm_model = llm.llm_engine.model_executor.driver_worker.model_runner.model
     llm_model.load_weights(state_dict.items())
-    
+
 
 def compute_eval_loss(model, eval_prompts, eval_resps, tokenizer, device, max_batches=20):
     model.eval()
-    
+
     total_logprob = 0.0
     total_tokens = 0.0
 
@@ -129,6 +130,7 @@ def compute_eval_loss(model, eval_prompts, eval_resps, tokenizer, device, max_ba
 
     return - total_logprob / total_tokens
 
+
 def run_sft_loop(
         model_train,
         dataloader,
@@ -151,13 +153,11 @@ def run_sft_loop(
 
     best_acc = -1
 
-
     print("Running eval once first")
     load_policy_into_vllm_instance(model_train, eval_vllm_model)
     acc, _ = evaluate(eval_vllm_model, eval_prompts, eval_gts)
     wandb.log({"eval/accuracy": acc}, step=step_count)
     print('EVAL', acc)
-
 
     for epoch_id in range(epoch):
         for batch in dataloader:
@@ -184,14 +184,16 @@ def run_sft_loop(
                 labels = res['labels'].to(device)
                 response_mask = res['response_mask'].to(device)
 
-                res_logprobs = run_get_response_log_probs_util(model_train, input_ids, labels, return_token_entropy=True)
+                res_logprobs = run_get_response_log_probs_util(model_train, input_ids, labels,
+                                                               return_token_entropy=True)
                 log_probs = res_logprobs['log_probs']
                 entropy = res_logprobs['token_entropy']
 
                 print("get response log probs done")
 
                 # TODO: Understand normalize constant thing
-                loss, metadata = run_sft_microbatch_train_step_util(log_probs,response_mask, grad_accum_steps, response_mask.sum())
+                loss, metadata = run_sft_microbatch_train_step_util(log_probs, response_mask, grad_accum_steps,
+                                                                    response_mask.sum())
                 true_loss = loss.item() * grad_accum_steps
                 wandb.log({
                     "train/loss": true_loss,
@@ -212,7 +214,8 @@ def run_sft_loop(
                     print("EVAL GROUND TRUTHS", eval_gts[:2])
                     load_policy_into_vllm_instance(model_train, eval_vllm_model)
                     acc, _ = evaluate(eval_vllm_model, eval_prompts, eval_gts)
-                    eval_loss = compute_eval_loss(model_train, eval_prompts, eval_resps, tokenizer, device) if eval_resps else None
+                    eval_loss = compute_eval_loss(model_train, eval_prompts, eval_resps, tokenizer,
+                                                  device) if eval_resps else None
                     print("EVAL LOSS", eval_loss)
                     wandb.log({"eval/accuracy": acc}, step=step_count)
                     if eval_loss is not None:
@@ -221,7 +224,6 @@ def run_sft_loop(
                         print("evla lOSS is found none")
                     print('eval', acc)
                     print("EVAL LOSS", eval_loss)
-
 
                     # SAVING THE MODEL
                     if acc > best_acc and run_name is not None:
@@ -242,7 +244,7 @@ def run_sft_loop(
                         model_train.save_pretrained(save_path)
                         tokenizer.save_pretrained(save_path)
                         print(f"saved new best model to {save_path} (acc={acc:.4f})")
-        
+
             except Exception as error:
                 print("Error occurred", error)
 
@@ -250,6 +252,7 @@ def run_sft_loop(
             torch.nn.utils.clip_grad_norm_(model_train.parameters(), 1.0)
             optimizer.step()
             optimizer.zero_grad()
+
 
 def main():
     import argparse
@@ -273,17 +276,15 @@ def main():
         torch_dtype=torch.bfloat16
     ).to(TRAIN_DEVICE)
 
-
     print("Loading tokenize")
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     print("===loaded===")
-
 
     batch_size = 1
     example_count = 512
     learning_rate = 1e-4
     grad_accum_steps = 16
-    
+
     run_name = f"SFT-dataset{args.dataset_type}-ec{str(example_count)}-ga{str(grad_accum_steps)}-batch_size{str(batch_size)}_lr{str(learning_rate)}"
     wandb.init(
         project=f"assignment-3-test",
@@ -317,12 +318,12 @@ def main():
     eval_prompts = []
     eval_gts = []
     eval_resps = []
-    
+
     if args.dataset_type == 'MATH':
         math_ds = load_dataset("hiyouga/math12k", split="test")
         if args.max_examples:
             math_ds = math_ds.select(range(min(args.max_examples, len(math_ds))))
-    
+
         eval_prompts = [prompt_template + "\n\n" + ex["problem"] for ex in math_ds]
         eval_gts = [ex["answer"] for ex in math_ds]
         eval_resps = [ex["solution"] for ex in math_ds]
@@ -330,7 +331,7 @@ def main():
         dataset = load_from_disk(args.intellect_test_path)
         if args.max_examples:
             dataset = dataset.select(range(min(args.max_examples, len(dataset))))
-    
+
         for ex in dataset:
             msgs = ex.get("messages", [])
             sys_msg = next((m["content"] for m in msgs if m["role"] == "system"), "")
@@ -340,7 +341,6 @@ def main():
             eval_gts.append(ex.get("ground_truth", ""))
             eval_resps.append(assistant_msg)
 
-    
     run_sft_loop(
         model_train,
         dataloader,
@@ -355,9 +355,10 @@ def main():
         eval_resps=eval_resps,
         eval_after=20,
         run_name=run_name
-        )
+    )
 
     wandb.finish()
+
 
 if __name__ == '__main__':
     main()

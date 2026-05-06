@@ -13,13 +13,13 @@ from collections import defaultdict
 
 
 def run_compute_group_normalized_rewards_util(
-    reward_fn: Callable,
-    rollout_responses: list[str],
-    repeated_ground_truths: list[str],
-    group_size: int,
-    advantage_eps: float,
-    normalize_by_std: bool,
-    aggregate_type = "NORMAL"
+        reward_fn: Callable,
+        rollout_responses: list[str],
+        repeated_ground_truths: list[str],
+        group_size: int,
+        advantage_eps: float,
+        normalize_by_std: bool,
+        aggregate_type="NORMAL"
 ) -> tuple[torch.Tensor, dict[str, float]]:
     """
     Compute rewards for each group of rollout responses,
@@ -58,6 +58,7 @@ def run_compute_group_normalized_rewards_util(
     """
     rewards = []
     reward_log = defaultdict(lambda: 0)
+
     if aggregate_type == "NORMAL":
         for i, rollout_response in enumerate(rollout_responses):
             reward_outp = reward_fn(rollout_response, repeated_ground_truths[i])
@@ -74,9 +75,13 @@ def run_compute_group_normalized_rewards_util(
     for key in reward_outp:
         reward_log[key] = sum(reward_outp[key]) / len(rewards)
 
-    reward_tensor = torch.tensor(rewards)
+    print("rewards in run compute group nomalized reards utils", rewards)
 
-    group_count = len(rollout_responses) // group_size
+    # reward_tensor = torch.tensor(rewards)
+    reward_tensor = torch.tensor(rewards, dtype=torch.float32)
+    print("reward shape", reward_tensor.shape)
+
+    group_count = len(rewards) // group_size
     grouped_reward_tensor = reward_tensor.view(group_count, group_size)
 
     mean_tensor = grouped_reward_tensor.mean(dim=1, keepdim=True)
@@ -88,13 +93,12 @@ def run_compute_group_normalized_rewards_util(
 
     Advantage = Advantage.view(-1)
 
-
     return Advantage, reward_tensor, reward_log
 
 
 def run_compute_naive_policy_gradient_loss_util(
         raw_rewards_or_advantages: torch.Tensor,
-    policy_log_probs: torch.Tensor,
+        policy_log_probs: torch.Tensor,
 ) -> torch.Tensor:
     """Compute policy gradient loss using either raw rewards or advantages.
 
@@ -113,11 +117,12 @@ def run_compute_naive_policy_gradient_loss_util(
 
     return npgl
 
+
 def run_compute_grpo_clip_loss_util(
-    advantages: torch.Tensor,
-    policy_log_probs: torch.Tensor,
-    old_log_probs: torch.Tensor,
-    cliprange: float,
+        advantages: torch.Tensor,
+        policy_log_probs: torch.Tensor,
+        old_log_probs: torch.Tensor,
+        cliprange: float,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Compute the GRPO-Clip loss.
 
@@ -137,13 +142,12 @@ def run_compute_grpo_clip_loss_util(
             dict[str, torch.Tensor]: metadata for the GRPO-Clip loss
                 (used to compute clip fraction).
     """
-    #print("RUN COMPUTE GRPO CLI PLOSS UTIL", advantages)
-    #print("POLICY LOG PROBS", policy_log_probs)
-    #print("OLD LOG PROBS", old_log_probs)
+    # print("RUN COMPUTE GRPO CLI PLOSS UTIL", advantages)
+    # print("POLICY LOG PROBS", policy_log_probs)
+    # print("OLD LOG PROBS", old_log_probs)
 
     ratio = torch.exp(policy_log_probs - old_log_probs)
-    #print("RATIO", ratio)
-
+    # print("RATIO", ratio)
 
     res = torch.min(
         ratio * advantages, torch.clamp(ratio, 1 - cliprange, 1 + cliprange) * advantages
@@ -158,12 +162,12 @@ def run_compute_grpo_clip_loss_util(
 
 
 def run_compute_policy_gradient_loss_util(
-    policy_log_probs: torch.Tensor,
-    loss_type: str,
-    raw_rewards: torch.Tensor,
-    advantages: torch.Tensor,
-    old_log_probs: torch.Tensor,
-    cliprange: float,
+        policy_log_probs: torch.Tensor,
+        loss_type: str,
+        raw_rewards: torch.Tensor,
+        advantages: torch.Tensor,
+        old_log_probs: torch.Tensor,
+        cliprange: float,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """
     Wrapper that delegates to the appropriate policy gradient loss function above.

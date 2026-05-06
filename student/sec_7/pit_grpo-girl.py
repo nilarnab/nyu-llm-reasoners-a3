@@ -13,7 +13,7 @@ from student.sec_7.dataloader import get_gsm_adversarial_dataloaders
 from student.sec_7.defaults import MODEL_NAME
 from student.sec_7.sec7 import run_compute_policy_gradient_loss_util, run_masked_mean_util, \
     run_compute_group_normalized_rewards_util
-from student.drgrpo_grader import pit_reward_fn
+from student.drgrpo_grader import pit_reward_fn, pit_reward_fn_diverse
 from vllm import SamplingParams
 from tqdm import tqdm
 import argparse
@@ -151,14 +151,14 @@ def run_grpo_training(
     best_acc = -1
     print("Running eval once first")
     load_policy_into_vllm_instance(model_train, eval_vllm_model)
-    acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
-                                           sampling_temperature=sampling_temperature,
-                                           sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
-                                           stop_tokens=['</answer>'],
-                                           reward_fn=pit_reward_fn,
-                                           )
-    wandb.log({"eval/accuracy": acc}, step=step_count)
-    print('EVAL', acc)
+    #acc, reward = evaluate(eval_vllm_model, eval_prompts, eval_gts,
+    #                                       sampling_temperature=sampling_temperature,
+    #                                       sampling_max_tokens=sampling_max_tokens, sampling_min_tokens=sampling_min_tokens,
+    #                                       stop_tokens=['</answer>'],
+    #                                       reward_fn=pit_reward_fn,
+    #                                       )
+    #wandb.log({"eval/accuracy": acc}, step=step_count)
+    #print('EVAL', acc)
 
     # train_iter = iter(dataloader)
     train_iter = cycle(dataloader)
@@ -226,7 +226,7 @@ def run_grpo_training(
                     repeated_prompts.append(question)
 
             advantages, raw_rewards, metadata_rewards = run_compute_group_normalized_rewards_util(
-                reward_fn=pit_reward_fn,
+                reward_fn=pit_reward_fn_diverse,
                 rollout_responses=rollout_responses,
                 repeated_ground_truths=repeated_ground_truths,
                 group_size=group_size,
@@ -383,20 +383,21 @@ def run_grpo_training(
 
                     # Delete an existing one so that we can have only one for instance
                     for existing in os.listdir("models"):
-                        if existing.endswith(f"_{run_name}"):
+                        if existing.endswith(f"_girl-{run_name}"):
                             existing_path = os.path.join("models", existing)
                             import shutil
                             shutil.rmtree(existing_path, ignore_errors=True)
                             print(f"deleted old checkpnt: {existing_path}")
 
                     # Saving the new best
-                    save_name = f"{acc:.4f}_{run_name}"
+                    save_name = f"{acc:.4f}_girl-{run_name}"
                     save_path = os.path.join("models", save_name)
                     model_train.save_pretrained(save_path)
                     tokenizer.save_pretrained(save_path)
                     print(f"saved new best model to {save_path} (acc={acc:.4f})")
 
         except Exception as error:
+            raise Exception(error)
             print("GRPO STEP", step, "SKIPPED", str(error))
 
 
